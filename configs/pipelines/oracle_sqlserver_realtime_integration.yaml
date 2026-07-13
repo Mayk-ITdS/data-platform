@@ -1,0 +1,116 @@
+apiVersion: dataplat.zielinski.io/v1alpha1
+kind: DataPipeline
+metadata:
+  name: oracle-sqlserver-realtime-integration
+  namespace: data-platform
+
+spec:
+  domain: insurance
+  type: realtime_integration
+
+  sources:
+    - name: oracle_abassurance
+      type: oracle
+      connectionSecretRef: oracle-abassurance-secret
+      tables:
+        - sourceTable: AB_CLIENT
+          primaryKey: AB_CLIENT_ID
+          targetEntity: client
+          bronzeTable: bronze_insurance.oracle_ab_client_raw
+          silverTable: silver_insurance.client_unified
+          transformationProfile: oracle_client_to_unified_client
+
+        - sourceTable: AB_CONTRAT
+          primaryKey: AB_POLICY_NUMBER
+          targetEntity: contract
+          bronzeTable: bronze_insurance.oracle_ab_contrat_raw
+          silverTable: silver_insurance.contract_unified
+          transformationProfile: oracle_contract_to_unified_contract
+
+        - sourceTable: AB_SINISTRE
+          primaryKey: AB_CLAIM_ID
+          targetEntity: claim
+          bronzeTable: bronze_insurance.oracle_ab_sinistre_raw
+          silverTable: silver_insurance.claim_unified
+          transformationProfile: oracle_claim_to_unified_claim
+
+        - sourceTable: AB_PAIEMENT
+          primaryKey: AB_PAYMENT_ID
+          targetEntity: payment
+          bronzeTable: bronze_insurance.oracle_ab_paiement_raw
+          silverTable: silver_insurance.payment_unified
+          transformationProfile: oracle_payment_to_unified_payment
+
+      cdc:
+        engine: debezium
+        snapshotMode: initial
+
+    - name: sqlserver_assureplus
+      type: sqlserver
+      connectionSecretRef: sqlserver-assureplus-secret
+      tables:
+        - sourceTable: AP_USERS
+          primaryKey: AP_USER_ID
+          targetEntity: client
+          bronzeTable: bronze_insurance.sqlserver_ap_users_raw
+          silverTable: silver_insurance.client_unified
+          transformationProfile: sqlserver_user_to_unified_client
+
+        - sourceTable: AP_CONTRACTS
+          primaryKey: AP_CONTRACT_REF
+          targetEntity: contract
+          bronzeTable: bronze_insurance.sqlserver_ap_contracts_raw
+          silverTable: silver_insurance.contract_unified
+          transformationProfile: sqlserver_contract_to_unified_contract
+
+        - sourceTable: AP_CLAIMS
+          primaryKey: AP_SINISTRE_NUM
+          targetEntity: claim
+          bronzeTable: bronze_insurance.sqlserver_ap_claims_raw
+          silverTable: silver_insurance.claim_unified
+          transformationProfile: sqlserver_claim_to_unified_claim
+
+        - sourceTable: AP_PAYMENTS
+          primaryKey: AP_PAYMENT_REF
+          targetEntity: payment
+          bronzeTable: bronze_insurance.sqlserver_ap_payments_raw
+          silverTable: silver_insurance.payment_unified
+          transformationProfile: sqlserver_payment_to_unified_payment
+
+      cdc:
+        engine: debezium
+        snapshotMode: initial
+
+  kafka:
+    topicPrefix: insurance.raw
+    partitions: 6
+    replicationFactor: 3
+    retentionDays: 7
+    dlqTopic: insurance.dlq
+
+  processing:
+    engine: spark_structured_streaming
+    transformationModule: transformations.insurance.oracle_sqlserver_unifier
+    checkpointLocation: s3a://checkpoints/insurance/oracle_sqlserver/
+    resources:
+      driverMemory: 2g
+      executorMemory: 4g
+      executorInstances: 2
+
+  storage:
+    profile: minio-iceberg
+    bronzeNamespace: bronze_insurance
+    silverNamespace: silver_insurance
+    goldNamespace: gold_insurance
+
+  dbt:
+    enabled: true
+    project: dbt/insurance
+    selector: tag:insurance_gold
+
+  serving:
+    - type: trino
+      useCase: bi
+
+    - type: api
+      sourceTable: gold_insurance.customer_360
