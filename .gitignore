@@ -5,3 +5,13 @@ __pycache__/
 .env
 .env.*
 .DS_Store
+*.parquet
+*.csv
+data/raw/*
+data/canonical/*
+data/result/*
+result/*
+data/NfipClaims.parquet
+data/results/
+data/testsdata/NfipPoliciesV3.parquet
+data/testsdata/NfipPoliciesV3.parquet
