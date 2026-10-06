@@ -20,6 +20,7 @@ spec:
           silverTable: silver_insurance.client_unified
           transformationProfile: oracle_client_to_unified_client
 
+
         - sourceTable: AB_CONTRAT
           primaryKey: AB_POLICY_NUMBER
           targetEntity: contract
