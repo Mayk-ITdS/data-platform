@@ -14,4 +14,4 @@ result/*
 data/NfipClaims.parquet
 data/results/
 data/testsdata/NfipPoliciesV3.parquet
-data/testsdata/NfipPoliciesV3.parquet
+data/tests
