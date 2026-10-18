@@ -5,15 +5,7 @@ from io import BytesIO
 from zipfile import ZipFile
 from pathlib import Path
 
-BASE_URL = "https://namecensus.com/last-names/"
-SSA_URL = "https://www.ssa.gov/oact/babynames/state/namesbystate.zip"
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/154.0.0.0 Safari/537.36"
-    )
-}
+
 
 class ScrapePages:
     def __init__(self,pages,headers,start_page=1):

@@ -242,9 +242,29 @@ all_types_policies = {
 categorical_columns = [x for x,y in all_types_policies.items() if y == "string"]
 non_categorical_columns = all_types_policies.keys() - categorical_columns
 
-key_columns = ["originalConstructionDate", 'reportedZipCode', 'rolloverTransferCode', 'originalNBDate',
-                   'policyEffectiveDate', 'policyTerminationDate']
+key_columns = [
+               "originalConstructionDate",
+               'reportedZipCode',
+               'rolloverTransferCode',
+               'originalNBDate',
+               'occupancyType',
+               'condominiumCoverageTypeCode',
+               'policyEffectiveDate',
+               'policyTerminationDate'
+               ]
+
 GEO_GROUP_COLUMNS = [
+    "censusGeoid",
+    "mapPanelNumber",
+    "mapPanelSuffix",
+]
+
+HOLDER_CONTEXT_COLUMNS = [
+    "reportedZipCode",
+    "originalNBDate",
+    "preFIRMIndicator",
+    "construction",
+    "foundationType",
     "censusGeoid",
     "mapPanelNumber",
     "mapPanelSuffix",
