@@ -38,31 +38,22 @@ def create_ab_client(spark_session):
                         .withColumn('building_category', building_map[F.col('buildingDescriptionCode')])
                         .withColumn('coverage_signal',F.coalesce(condo_test_map[F.col('condominiumCoverageTypeCode')],F.lit('UNKNOWN')))
                         )
+    customer_plus = customer_base_df.filter(customer_base_df.policyCount > 1).select('series_signature','geo_group_series').distinct()
 
-    policies_test = (customer_base_df.groupBy('series_signature','geo_group_series')
-                     .agg(F.count('*').alias('geo_group_row_count'),
-                          F.countDistinct('coverage_signal').alias('coverage_distinct_signal_count'),
-                          F.array_sort(F.collect_set('coverage_signal')).alias('coverage_distinct_signals'),
-                          ).orderBy(F.desc('coverage_distinct_signal_count'),F.desc('geo_group_row_count')
-                                    )
-                     )
+    joined = customer_base_df.join(customer_plus, on=['series_signature','geo_group_series'], how='left_semi')
 
-    groups_to_inspect = policies_test.filter(F.col('coverage_distinct_signal_count')>1).select('series_signature','geo_group_series')
-
-    semi_join = customer_base_df.join(groups_to_inspect, on=['series_signature','geo_group_series'], how='semi')
-
-    policies_test_2 = semi_join.groupBy('series_signature','geo_group_series','coverage_signal').agg(
+    test_customer = joined.groupBy('series_signature','geo_group_series').agg(
         F.count('*').alias('row_count'),
+        F.array_sort(F.collect_set('coverage_signal')).alias('coverage_signals'),
         F.array_sort(F.collect_set('occupancy_category')).alias('occupancy_categories'),
         F.array_sort(F.collect_set('building_category')).alias('building_categories'),
         F.min(F.col('policyEffectiveDate')).alias('min_policyEffectiveDate'),
         F.max(F.col('policyEffectiveDate')).alias('max_policyEffectiveDate'),
         F.min(F.col('policyTerminationDate')).alias('min_terminationDate'),
         F.max(F.col('policyTerminationDate')).alias('max_terminationDate')
+    ).orderBy(F.desc('row_count'))
 
-    )
-    policies_test.show(300,truncate=False)
-    policies_test_2.show(300,truncate=False)
+    test_customer.show(300,truncate=False)
 
 if __name__ == '__main__':
 
