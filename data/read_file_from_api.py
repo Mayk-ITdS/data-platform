@@ -1,13 +1,8 @@
 import requests
-import pandas as pd
-import re
-import py4j
 import pyarrow as pa
 import pyarrow.parquet as pq
-from pyspark.sql import SparkSession,Window
+from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-import pyspark as ps
-import time
 from functools import reduce
 from operator import and_
 from data.spark_utils.data_utils import stable_hash
