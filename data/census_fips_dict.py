@@ -50,8 +50,6 @@ STATE_FIPS = {
     "54": "WV",
     "55": "WI",
     "56": "WY",
-
-    # US territories
     "60": "AS",
     "66": "GU",
     "69": "MP",
