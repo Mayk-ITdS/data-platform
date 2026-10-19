@@ -5,7 +5,7 @@ from io import BytesIO
 from zipfile import ZipFile
 from pathlib import Path
 
-
+from data.ingestion.scraping.utils.remote_data import SSA_URL, HEADERS, BASE_URL
 
 class ScrapePages:
     def __init__(self,pages,headers,start_page=1):
@@ -16,6 +16,7 @@ class ScrapePages:
     def __iter__(self):
 
         return self
+
     def fetch_names(self,url):
         response = requests.get(
             url,
@@ -46,7 +47,6 @@ class ScrapePages:
             output_dir / 'ssa_first_names.parquet',
             index=False
         )
-
         return self
 
     def __next__(self):
