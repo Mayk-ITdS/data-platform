@@ -25,7 +25,7 @@ class ScrapeTigerAddresses:
             f"zip+{self.tiger_url}"
             "!tlgpkg_2026_us_addr.gpkg"
         )
-        self.output_dir = Path("data/scraping/addresses/tiger_data")
+        self.output_dir = Path("data/ingestion/scraping/addresses/tiger_data")
     def scrape_addresses(self):
         self.output_dir.mkdir(
             parents=True,
