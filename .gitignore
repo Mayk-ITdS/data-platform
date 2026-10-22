@@ -16,3 +16,5 @@ data/results/
 data/testsdata/NfipPoliciesV3.parquet
 data/tests
 *.gpkg
+**/target/
+**/.bsp/
