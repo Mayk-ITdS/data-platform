@@ -4,7 +4,7 @@ from pyspark.sql.window import Window
 
 ROOT = Path(__file__).resolve().parents[4]
 
-def prepare_surname_lookup(spark_session,clients):
+def prepare_surname_lookup(spark_session):
 
     last_names_df = spark_session.read.parquet(str(ROOT/'data'/'ingestion'/'scraping'/'names'/'census_last_names.parquet'))
     census_window = Window.orderBy((F.col('rank_number'))).rowsBetween(Window.unboundedPreceding, Window.currentRow)
@@ -20,8 +20,38 @@ def prepare_surname_lookup(spark_session,clients):
     ).withColumn(
         'threshold', F.sum('count').over(census_window)
     )
-    census_surnames_set = census_last_names_rank.select('rank_number', 'threshold', 'Last Name')
+    census_surnames_set = (census_last_names_rank
+                           .select('threshold',
+                                   'Last Name'
+                                   )
+                           )
+    census_surnames_set = census_surnames_set.orderBy('threshold').collect()
 
-    total_bearers = (census_surnames_set.agg(F.max('threshold').alias('max_threshold')).first()['max_threshold'])
+    max_threshold = census_surnames_set[-1][0]
+    thresholds = [row['threshold'] for row in census_surnames_set]
+    surnames = [row['Last Name'] for row in census_surnames_set]
 
-    return total_bearers,census_last_names_rank
+    gateway = spark_session.sparkContext._gateway
+    jvm = spark_session._jvm
+
+    jvm_thresholds = gateway.new_array(
+        jvm.long,
+        len(thresholds)
+    )
+    for i, value in enumerate(thresholds):
+        jvm_thresholds[i] = value
+
+    jvm_surnames = gateway.new_array(
+        jvm.java.lang.String,
+        len(surnames)
+    )
+    for i, value in enumerate(surnames):
+        jvm_surnames[i] = value
+
+    jvm.SurnameLookupUDF.register(
+        spark_session._jsparkSession,
+        jvm_thresholds,
+        jvm_surnames
+    )
+
+    return max_threshold

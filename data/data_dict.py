@@ -260,12 +260,12 @@ GEO_GROUP_COLUMNS = [
 ]
 
 HOLDER_CONTEXT_COLUMNS = [
-    "reportedZipCode",
+    'propertyState',
+    'nfipCommunityName',
     "originalNBDate",
     "preFIRMIndicator",
     "construction",
     "foundationType",
-    "censusGeoid",
     "mapPanelNumber",
     "mapPanelSuffix",
 ]
