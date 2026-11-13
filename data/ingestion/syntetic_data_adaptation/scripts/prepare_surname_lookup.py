@@ -2,6 +2,8 @@ from pathlib import Path
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 
+from data.spark_utils.data_utils import create_spark_session
+
 ROOT = Path(__file__).resolve().parents[4]
 
 def prepare_surname_lookup(spark_session):
@@ -55,3 +57,7 @@ def prepare_surname_lookup(spark_session):
     )
 
     return max_threshold
+
+
+if __name__ == '__main__':
+    prepare_surname_lookup(spark_session=create_spark_session('Prepare Surname Lookup'))

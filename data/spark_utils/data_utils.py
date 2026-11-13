@@ -1,4 +1,5 @@
-from pyspark.sql import functions as F
+import pandas as pd
+from pyspark.sql import functions as F, Window
 from pyspark.sql import SparkSession
 
 def stable_hash(columns):
@@ -14,8 +15,19 @@ def create_spark_session(app_name):
     return  (
         SparkSession.builder
             .appName(f"{app_name}")
+            .master("local[8]")
+            .config('spark.driver.memory', '7g')
             .config("spark.sql.repl.eagerEval.enabled", True)
-            .config("spark.sql.repl.eagerEval.maxNumRows", 200)
+            .config(
+            "spark.sql.adaptive.coalescePartitions.parallelismFirst",
+            "false"
+            )
+            .config(
+                "spark.sql.adaptive.advisoryPartitionSizeInBytes",
+                "64m"
+            )
+            .config("spark.sql.adaptive.skewJoin.enabled", "true")
+            .config("spark.sql.files.maxPartitionBytes", "64m")
             .config("spark.sql.session.timeZone", "UTC")
             .getOrCreate()
     )
@@ -59,7 +71,7 @@ def column_lookup(df, col_name,alias):
     return df.groupBy(*col_name).agg(F.count('*').alias(alias))
 def read_rankable_columns():
 
-    spark = start_spark_session("Rankable Columns Reader")
+    spark = create_spark_session("Rankable Columns Reader")
     adjacent = spark.read.parquet(f"data/results/summary_column_ranking")
     single_occurrence = (adjacent.filter(F.col('distinct_values') == 1).orderBy('inspected_group_id'))
 
@@ -107,7 +119,7 @@ def small_pandas_scoring():
     print(columns_importance)
     return columns_importance
 
-def pattern_detection(stage3_rows):
+def pattern_detection(comparison_columns,stage3_rows,spark=create_spark_session('Processing Melted for scoring'),):
 
     summary_to_melt = stage3_rows.select('group_signature', 'geo_group_signature', 'variant_signature',
                                          'variants_in_group',
@@ -128,7 +140,7 @@ def pattern_detection(stage3_rows):
     )
 
     melt_for_scoring.write.mode('overwrite').parquet('data/results/melt_for_scoring.parquet')
-    melt_for_scoring = spark_session.read.parquet('data/results/melt_for_scoring.parquet')
+    melt_for_scoring = spark.read.parquet('data/results/melt_for_scoring.parquet')
 
     melting_window = Window.partitionBy('geo_group_signature', 'column_name', 'value')
     scored_melts = (
@@ -145,8 +157,6 @@ def pattern_detection(stage3_rows):
             )
         )
     )
-
-    spark = start_spark_session('Processing Melted for scoring')
 
     filtered_non_zeros = scored_melts.filter(F.col('discrimination_score') > 0)
 
@@ -183,9 +193,6 @@ def pattern_detection(stage3_rows):
         "changed_columns",
         "geo_group_signature"
     )
-
-    patterns_summary.show(100, truncate=False)
-    pattern_groups.show(100, truncate=False)
 
     return pattern_groups
 
