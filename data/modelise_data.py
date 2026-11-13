@@ -9,6 +9,7 @@ def main():
         spark.read.parquet("data/results/sql_server_policies")
         .withColumn("source_system", F.lit("SQL_SERVER"))
     )
+    print("SQL_SERVER columns:",sql_server.columns)
 
     oracle = (
         spark.read.parquet("data/results/oracle_policies")
@@ -24,6 +25,17 @@ def main():
         "JVM max heap GB:",
         spark._jvm.java.lang.Runtime.getRuntime().maxMemory() / 1024 ** 3
     )
+    violations = (
+        sql_server
+        .select("series_signature", "geo_group_series")
+        .distinct()
+        .groupBy("series_signature")
+        .count()
+        .filter(F.col("count") > 1)
+    )
+
+    assert violations.limit(1).count() == 0
+    print("Violations:",violations.count())
 
     series_overlap = sql_server.select('series_signature','geo_group_series').distinct().join(
         oracle.select('series_signature','geo_group_series').distinct(),on=['series_signature','geo_group_series'],how='inner'

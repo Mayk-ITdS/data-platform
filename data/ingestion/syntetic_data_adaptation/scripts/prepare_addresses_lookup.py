@@ -57,9 +57,10 @@ def prepare_addresses_lookup(spark_session):
         )
 
     tiger_pools = tiger_ranked.select('FULLNAME','ZIP','address_idx','FROMHN_NR','TOHN_NR','ARID_NR','addresses_count',)
-    tiger_pools.show(50,truncate=False)
 
     return tiger_pools
 
-spark_session = create_spark_session('Addresses Read')
-prepare_addresses_lookup(spark_session)
+if __name__ == "__main__":
+
+    spark_session = create_spark_session('Addresses Read')
+    prepare_addresses_lookup(spark_session)

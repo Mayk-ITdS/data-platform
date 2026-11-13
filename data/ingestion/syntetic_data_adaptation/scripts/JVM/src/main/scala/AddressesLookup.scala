@@ -1,5 +1,4 @@
 package data.enrichment
-
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Dataset, Row}
 
