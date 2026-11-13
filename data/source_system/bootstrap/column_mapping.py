@@ -1,0 +1,135 @@
+
+STRUCT_MAPPINGS = {
+    "property_location_context": {
+        "target": "dbo.Property",
+        "columns": {
+            "reportedCity": "ReportedCity",
+            "reportedZipCode": "ReportedZipCode",
+            "censusGeoid": "CensusGeoid",
+            "latitude": "Latitude",
+            "longitude": "Longitude",
+            "femaRegion": "FemaRegion",
+            "nfipCommunityName": "NfipCommunityName",
+            "nfipCommunityNumberCurrent": "NfipCommunityNumberCurrent",
+            "nfipRatedCommunityNumber": "NfipRatedCommunityNumber",
+            "mapPanelNumber": "MapPanelNumber",
+            "mapPanelSuffix": "MapPanelSuffix",
+        },
+    },
+
+    "holder_classification_context": {
+        "target": "dbo.HolderClassification",
+        "columns": {
+            "stateOwnedIndicator": "StateOwnedIndicator",
+            "nonProfitIndicator": "NonProfitIndicator",
+            "houseOfWorshipIndicator": "HouseOfWorshipIndicator",
+            "smallBusinessIndicatorBuilding": "SmallBusinessIndicatorBuilding",
+            "condominiumCoverageTypeCode": "CondominiumCoverageTypeCode",
+            "condo_coverage_category": "CondoCoverageCategory",
+            "coverage_signal": "CoverageSignal",
+        },
+    },
+
+    "property_usage": {
+        "target": "dbo.PropertyUsage",
+        "columns": {
+            "occupancyType": "OccupancyType",
+            "occupancy_category": "OccupancyCategory",
+            "primaryResidenceIndicator": "PrimaryResidenceIndicator",
+            "rentalPropertyIndicator": "RentalPropertyIndicator",
+            "tenantIndicator": "TenantIndicator",
+            "seasonallyOccupied": "SeasonallyOccupied",
+            "buildingPurpose": "BuildingPurpose",
+        },
+    },
+
+    "building_technical_properties": {
+        "target": "dbo.Building",
+        "columns": {
+            "originalConstructionDate": "OriginalConstructionDate",
+            "buildingDescriptionCode": "BuildingDescriptionCode",
+            "building_category": "BuildingCategory",
+            "numberOfFloorsInInsuredBuilding": "NumberOfFloorsInInsuredBuilding",
+            "construction": "Construction",
+        },
+    },
+
+    "building_risk_context": {
+        "target": "dbo.Risks",
+        "columns": {
+            "ratedFloodZone": "RatedFloodZone",
+            "floodZoneCurrent": "FloodZoneCurrent",
+            "baseFloodElevation": "BaseFloodElevation",
+            "elevationDifference": "ElevationDifference",
+            "locationOfContents": "LocationOfContents",
+            "elevationCertificateIndicator": "ElevationCertificateIndicator",
+            "lowestFloorElevation": "LowestFloorElevation",
+            "lowestAdjacentGrade": "LowestAdjacentGrade",
+            "buildingOverWaterType": "BuildingOverWaterType",
+            "enclosureTypeCode": "EnclosureTypeCode",
+            "obstructionType": "ObstructionType",
+            "mandatoryPurchaseFlag": "MandatoryPurchaseFlag",
+            "postFirmVzoneIndicator": "PostFirmVzoneIndicator",
+            "crsClassCode": "CrsClassCode",
+            "disasterAssistanceCoverageRequiredCode": "DisasterAssistanceCoverageRequiredCode",
+            "buildingOnFederalLand": "BuildingOnFederalLand",
+            "foundationType": "FoundationType",
+            "buildingReplacementCost": "BuildingReplacementCost",
+            "elevatedBuildingIndicator": "ElevatedBuildingIndicator",
+            "floodproofedIndicator": "FloodproofedIndicator",
+            "basementEnclosureCrawlspaceType": "BasementEnclosureCrawlspaceType",
+            "preFIRMIndicator": "PreFIRMIndicator",
+            "postFIRMConstructionIndicator": "PostFIRMConstructionIndicator",
+            "regularEmergencyProgramIndicator": "RegularEmergencyProgramIndicator",
+        },
+    },
+
+    "policy_contract_context": {
+        "target": "dbo.PolicyTerms",
+        "columns": {
+            "policyTermIndicator": "PolicyTermIndicator",
+            "programTypeIndicator": "ProgramTypeIndicator",
+            "policyEffectiveDate": "PolicyEffectiveDate",
+            "policyTerminationDate": "PolicyTerminationDate",
+            "policyCount": "PolicyCount",
+            "policyCost": "PolicyCost",
+            "buildingDeductibleCode": "BuildingDeductibleCode",
+            "contentsDeductibleCode": "ContentsDeductibleCode",
+            "rolloverTransferCode": "RolloverTransferCode",
+            "waitingPeriodType": "WaitingPeriodType",
+            "totalBuildingInsuranceCoverage": "TotalBuildingInsuranceCoverage",
+            "totalContentsInsuranceCoverage": "TotalContentsInsuranceCoverage",
+            "cancellationDateOfFloodPolicy": "CancellationDateOfFloodPolicy",
+            "cancellationVoidanceReasonCode": "CancellationVoidanceReasonCode",
+            "endorsementEffectiveDate": "EndorsementEffectiveDate",
+        },
+    },
+
+    "policy_rating_context": {
+        "target": "dbo.PolicyRating",
+        "columns": {
+            "rateMethod": "RateMethod",
+            "subsidizedRateType": "SubsidizedRateType",
+            "grandfatheringTypeCode": "GrandfatheringTypeCode",
+            "insuranceToValueCode": "InsuranceToValueCode",
+            "basicBuildingRate": "BasicBuildingRate",
+            "additionalBuildingRate": "AdditionalBuildingRate",
+            "basicContentsRate": "BasicContentsRate",
+            "additionalContentsRate": "AdditionalContentsRate",
+        },
+    },
+
+    "premium_financial_context": {
+        "target": "dbo.PremiumFinancial",
+        "columns": {
+            "totalInsurancePremiumOfThePolicy": "TotalInsurancePremiumOfThePolicy",
+            "federalPolicyFee": "FederalPolicyFee",
+            "hfiaaSurcharge": "HfiaaSurcharge",
+            "iccPremium": "IccPremium",
+            "reserveFundAssessment": "ReserveFundAssessment",
+            "communityProbationSurcharge": "CommunityProbationSurcharge",
+            "premiumPaymentIndicator": "PremiumPaymentIndicator",
+            "fullRiskPremium": "FullRiskPremium",
+        },
+    },
+}
