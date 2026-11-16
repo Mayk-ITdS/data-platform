@@ -81,3 +81,14 @@ def validate_private_clients(df: DataFrame) -> None:
 
     if invalid_values.limit(1).count() > 0:
         raise ValueError("PrivateClient exceeds SQL schema constraints")
+
+def validate_source_oracle(oracle_policies):
+    invalid_source = oracle_policies.filter(
+        F.col("source_system").isNull()
+        | (F.col("source_system") != "ORACLE")
+    )
+
+    if invalid_source.limit(1).count() > 0:
+        raise ValueError(
+            "Invalid source_system: expected ORACLE"
+        )
