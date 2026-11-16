@@ -76,6 +76,46 @@ jobs:
           name: fema-phase1-reports
           path: artifacts/test-reports/
 
+      - name: Normalize Docker coverage paths
+        env:
+          CHECKOUT_DIR: ${{ github.workspace }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          report = Path("artifacts/test-reports/coverage.xml")
+          tree = ET.parse(report)
+          sources = tree.findall(".//sources/source")
+
+          assert sources, "No coverage source entries found"
+
+          for source in sources:
+            if source.text and source.text.startswith("/workspace"):
+              suffix = source.text.removeprefix("/workspace").lstrip("/")
+              source.text = str(Path(os.environ["CHECKOUT_DIR"]) / suffix)
+
+          for cls in tree.findall(".//class"):
+            filename = cls.get("filename")
+            if filename:
+              assert any(
+                  (Path(source.text) / filename).is_file()
+                  for source in sources
+                  if source.text
+              ), f"Coverage file not found: {filename}"
+
+          tree.write(report, encoding="utf-8",
+                     xml_declaration=True)
+
+          assert all(
+              source.text != "/workspace"
+              for source in sources
+          ), "Docker paths were not normalized"
+
+          print("Coverage paths normalized")
+          PY
+
       - name: Run SonarQube Cloud analysis
         uses: SonarSource/sonarqube-scan-action@v8.3.0
         env:
@@ -85,9 +125,7 @@ jobs:
             -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
             -Dsonar.host.url=https://sonarcloud.io
-            -Dsonar.sources=data_platform
-            -Dsonar.tests=data_platform/tests
-            -Dsonar.test.inclusions=data_platform/tests/**
+            -Dsonar.python.version=3.12
             -Dsonar.exclusions=data_platform/tests/**,**/__pycache__/**
             -Dsonar.python.coverage.reportPaths=artifacts/test-reports/coverage.xml
             -Dsonar.qualitygate.wait=true
