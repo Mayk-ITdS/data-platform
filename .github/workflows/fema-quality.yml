@@ -1,0 +1,93 @@
+
+name: FEMA quality
+
+on:
+  pull_request:
+    branches: [master, develop]
+  push:
+    branches: [master, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-and-iceberg:
+    name: Phase 1 - Unit and Iceberg
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run isolated tests
+        run: bash infrastructure/testing/run_tests.sh
+
+      - name: Upload Phase 1 reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fema-phase1-reports
+          path: artifacts/test-reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+  kafka-e2e:
+    name: Phase 2 - Kafka Bronze Silver
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run real Kafka to Iceberg pipeline
+        run: bash infrastructure/testing/run_kafka_e2e.sh
+
+      - name: Upload Phase 2 reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fema-phase2-reports
+          path: artifacts/test-reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+  sonarqube:
+    name: SonarQube Quality Gate
+    needs: [unit-and-iceberg, kafka-e2e]
+    if: >-
+      ${{ success() &&
+          vars.SONAR_PROJECT_KEY != '' &&
+          vars.SONAR_ORGANIZATION != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Phase 1 coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: fema-phase1-reports
+          path: artifacts/test-reports/
+
+      - name: Run SonarQube Cloud analysis
+        uses: SonarSource/sonarqube-scan-action@v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >-
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.sources=data_platform
+            -Dsonar.tests=data_platform/tests
+            -Dsonar.test.inclusions=data_platform/tests/**
+            -Dsonar.exclusions=data_platform/tests/**,**/__pycache__/**
+            -Dsonar.python.coverage.reportPaths=artifacts/test-reports/coverage.xml
+            -Dsonar.qualitygate.wait=true

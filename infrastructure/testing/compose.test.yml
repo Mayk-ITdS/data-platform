@@ -1,0 +1,48 @@
+services:
+  unit:
+    image: python:3.12-slim
+    working_dir: /workspace
+    volumes:
+      - ../../:/workspace:ro
+      - ../../artifacts/test-reports:/reports
+    environment:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONPATH: /workspace
+      COVERAGE_FILE: /reports/.coverage
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        pip install --disable-pip-version-check --no-cache-dir pytest==8.4.2 pytest-cov==7.0.0 ruff==0.14.3
+        ruff check --no-cache data_platform/tests/unit data_platform/spark/cdc_contract.py
+        python -m pytest -p no:cacheprovider data_platform/tests/unit -q --junitxml=/reports/unit-junit.xml --cov=data_platform.spark.cdc_contract --cov-report=xml:/reports/coverage.xml --cov-report=term-missing
+
+  spark-smoke:
+    image: apache/spark:4.1.0-scala2.13-java21-python3-r-ubuntu
+    user: root
+    environment:
+      HOME: /tmp
+    working_dir: /workspace
+    volumes:
+      - ../../:/workspace:ro
+      - spark-warehouse:/lakehouse
+      - ../../artifacts/test-reports:/reports
+    entrypoint: ["/opt/spark/bin/spark-submit"]
+    command:
+      - --master
+      - local[2]
+      - --driver-memory
+      - 1024m
+      - --conf
+      - spark.sql.shuffle.partitions=2
+      - --conf
+      - spark.ui.enabled=false
+      - --conf
+      - spark.jars.ivy=/lakehouse/ivy-cache
+      - --packages
+      - org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.12.0
+      - data_platform/tests/integration/spark_iceberg_smoke.py
+    mem_limit: 2500m
+    cpus: 2
+
+volumes:
+  spark-warehouse:
