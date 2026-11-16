@@ -521,6 +521,6 @@ def read_clients(spark,db_name):
 
 if __name__ == '__main__':
     spark_session = create_spark_session('Create Ab Client v2')
-    create_ab_client(spark_session)
+    create_ab_client(spark_session,'oracle')
 
 

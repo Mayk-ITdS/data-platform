@@ -1,5 +1,10 @@
-import os
 from pyspark.sql import DataFrame
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+ROOT = Path(__file__).resolve().parents[3]
+load_dotenv(ROOT / ".env")
 
 def write_jdbc(
     df: DataFrame,

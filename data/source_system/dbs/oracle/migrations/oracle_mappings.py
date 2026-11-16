@@ -1,7 +1,5 @@
 import re
-
 from data.source_system.bootstrap.column_mapping import STRUCT_MAPPINGS
-
 
 ORACLE_TABLES = {
     "property_location_context": "POLICY_PROPERTY_LOCATION",
@@ -13,7 +11,6 @@ ORACLE_TABLES = {
     "policy_rating_context": "POLICY_RATING",
     "premium_financial_context": "POLICY_PREMIUM_FINANCIAL",
 }
-
 
 def to_snake_case(name: str) -> str:
     name = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
