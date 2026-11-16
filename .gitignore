@@ -18,3 +18,29 @@ data/tests
 *.gpkg
 **/target/
 **/.bsp/
+/infrastructure/debezium/assureplus-oracle.json
+/infrastructure/openlogreplicator/config/*.json
+/infrastructure/openlogreplicator/state/
+/infrastructure/openlogreplicator/log/
+/infrastructure/volumes/lakehouse/
+# FEMA runtime data
+/infrastructure/volumes/
+/artifacts/
+/drivers/
+/data_platform/spark/version-hint.text
+
+# Python
+__pycache__/
+.pytest_cache/
+*.pyc
+.venv/
+.venv-*/
+
+# Local secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Logs
+*.log
