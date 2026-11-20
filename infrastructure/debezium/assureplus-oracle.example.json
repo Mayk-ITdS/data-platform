@@ -1,0 +1,21 @@
+{
+  "name": "assureplus-oracle",
+  "config": {
+    "connector.class": "io.debezium.connector.oracle.OracleConnector",
+    "tasks.max": "1",
+    "database.hostname": "oracle-fema-v2",
+    "database.port": "1521",
+    "database.user": "C##DBZUSER",
+    "database.password": "REPLACE_WITH_ORACLE_PASSWORD",
+    "database.dbname": "FREE",
+    "database.pdb.name": "FREEPDB1",
+    "database.connection.adapter": "logminer",
+    "topic.prefix": "assureplus",
+    "table.include.list": "ASSUREPLUS.HOLDER,ASSUREPLUS.PRIVATE_CLIENT,ASSUREPLUS.POLICY,ASSUREPLUS.CLAIM,ASSUREPLUS.POLICY_BUILDING_RISK,ASSUREPLUS.POLICY_BUILDING_TECHNICAL,ASSUREPLUS.POLICY_CONTRACT,ASSUREPLUS.POLICY_HOLDER_CLASSIFICATION,ASSUREPLUS.POLICY_PREMIUM_FINANCIAL,ASSUREPLUS.POLICY_PROPERTY_LOCATION,ASSUREPLUS.POLICY_PROPERTY_USAGE,ASSUREPLUS.POLICY_RATING",
+    "snapshot.mode": "initial",
+    "snapshot.max.threads": "1",
+    "snapshot.fetch.size": "1000",
+    "schema.history.internal.kafka.bootstrap.servers": "kafka-fema:9092",
+    "schema.history.internal.kafka.topic": "schemahistory.assureplus"
+  }
+}
