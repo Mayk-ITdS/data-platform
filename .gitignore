@@ -44,3 +44,6 @@ __pycache__/
 
 # Logs
 *.log
+
+# Local Debezium credentials
+/infrastructure/debezium/assureplus-oracle.json

@@ -1,0 +1,91 @@
+
+services:
+  oracle:
+    image: container-registry.oracle.com/database/free:latest
+    container_name: oracle-fema-v2
+    restart: unless-stopped
+    environment:
+      ORACLE_PWD: ${ORACLE_PWD:?Set ORACLE_PWD}
+    ports:
+      - "127.0.0.1:1521:1521"
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+    networks:
+      - fema-cdc
+    mem_limit: 4g
+    cpus: 2.0
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    container_name: sqlserver-fema
+    hostname: sqlserver-fema
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: ${MSSQL_PID:?Set MSSQL_PID}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD}
+    ports:
+      - "127.0.0.1:11433:1433"
+    volumes:
+      - ../volumes/sqlserver:/var/opt/mssql
+    networks:
+      - fema-cdc
+    mem_limit: 3g
+
+  kafka:
+    image: apache/kafka:4.1.2
+    container_name: kafka-fema
+    hostname: kafka-fema
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-fema:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-fema:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: "1"
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+    volumes:
+      - ../volumes/kafka:/var/lib/kafka/data
+    networks:
+      - fema-cdc
+    mem_limit: 1500m
+
+  connect:
+    image: quay.io/debezium/connect:3.4
+    container_name: connect-fema
+    hostname: connect-fema
+    restart: unless-stopped
+    environment:
+      BOOTSTRAP_SERVERS: kafka-fema:9092
+      GROUP_ID: fema-connect
+      CONFIG_STORAGE_TOPIC: fema-connect-configs
+      OFFSET_STORAGE_TOPIC: fema-connect-offsets
+      STATUS_STORAGE_TOPIC: fema-connect-status
+      CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      STATUS_STORAGE_REPLICATION_FACTOR: "1"
+      HEAP_OPTS: "-Xms256m -Xmx512m"
+    ports:
+      - "127.0.0.1:18083:8083"
+    depends_on:
+      - kafka
+    networks:
+      - fema-cdc
+    mem_limit: 1500m
+
+networks:
+  fema-cdc:
+    external: true
+    name: fema-cdc
+
+volumes:
+  oracle-data:
+    external: true
+    name: oracle-fema-v2-data
