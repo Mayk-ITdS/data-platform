@@ -14,7 +14,7 @@ services:
       - |
         pip install --disable-pip-version-check --no-cache-dir pytest==8.4.2 pytest-cov==7.0.0 ruff==0.14.3
         ruff check --no-cache data_platform/tests/unit data_platform/spark/cdc_contract.py
-        python -m pytest -p no:cacheprovider data_platform/tests/unit -q --junitxml=/reports/unit-junit.xml --cov=data_platform.spark.cdc_contract --cov-report=xml:/reports/coverage.xml --cov-report=term-missing
+        python -m pytest -p no:cacheprovider data_platform/tests/unit -q --junitxml=/reports/unit-junit.xml --cov=data_platform.spark.cdc_contract --cov=infrastructure/debezium --cov-report=xml:/reports/coverage.xml --cov-report=term-missing
 
   spark-smoke:
     image: apache/spark:4.1.0-scala2.13-java21-python3-r-ubuntu
