@@ -89,3 +89,49 @@ def test_cold_restore_contract(tmp_path, monkeypatch):
     assert "127.0.0.1:9192:9092/tcp" in next(c for c in calls if c[0] == "create")
     with pytest.raises(FileExistsError):
         migration.restore(root)
+
+
+def test_cli_entry_points(monkeypatch, tmp_path):
+    import runpy
+    import os
+
+    root = Path(__file__).resolve().parents[3]
+    monkeypatch.setattr(sys, "argv", ["demo", "--cycles", "-1"])
+    with pytest.raises(SystemExit) as error:
+        runpy.run_path(str(root / "data_platform/demo/demo_cdc_generator.py"), run_name="__main__")
+    assert error.value.code == 2
+    monkeypatch.setattr(sys, "argv", ["migration", "restore", str(tmp_path)])
+    monkeypatch.setattr(os, "geteuid", lambda: 1000)
+    with pytest.raises(SystemExit) as error:
+        runpy.run_path(str(root / "scripts/migrate_cdc_stack.py"), run_name="__main__")
+    assert error.value.code == 2
+    monkeypatch.setattr(os, "geteuid", lambda: 0)
+    old = os.umask(0o077)
+    try:
+        with pytest.raises(ValueError, match="Incomplete"):
+            runpy.run_path(str(root / "scripts/migrate_cdc_stack.py"), run_name="__main__")
+    finally:
+        os.umask(old)
+
+    import urllib.request
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: response({}))
+    with pytest.raises(RuntimeError, match="Expected both"):
+        runpy.run_path(str(root / "scripts/check_video_sources.py"), run_name="__main__")
+    monkeypatch.setattr(sys, "argv", ["sonar", "project"])
+    def sonar_response(req, **kwargs):
+        data = {"projectStatus": {"status": "OK", "conditions": []}} if "project_status" in req.full_url else {
+            "issues": [], "paging": {"total": 0}}
+        return response(data)
+    monkeypatch.setattr(urllib.request, "urlopen", sonar_response)
+    runpy.run_path(str(root / "scripts/sonar_video.py"), run_name="__main__")
+
+
+def test_inspect_and_docker_errors_propagate(monkeypatch):
+    monkeypatch.setattr(subprocess, "check_output", lambda args: b'[{"Name":"cdc"}]')
+    assert migration.inspect("cdc")["Name"] == "cdc"
+    def failed(args, check):
+        assert check is True and args == ["docker", "start", "cdc"]
+        raise subprocess.CalledProcessError(1, args)
+    monkeypatch.setattr(subprocess, "run", failed)
+    with pytest.raises(subprocess.CalledProcessError):
+        migration.docker("start", "cdc")
