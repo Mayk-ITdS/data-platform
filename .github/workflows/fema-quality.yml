@@ -155,6 +155,9 @@ jobs:
           print("Coverage paths normalized")
           PY
 
+      - name: Prepare the ASSUREPLUS data dictionary from the migration
+        run: bash infrastructure/testing/start_oracle_dictionary.sh
+
       - name: Run SonarQube Cloud analysis
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9
         env:
@@ -165,6 +168,12 @@ jobs:
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
             -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.python.version=3.12
-            -Dsonar.exclusions=data_platform/tests/**,**/__pycache__/**
+            -Dsonar.tests=data_platform/tests,tests,data/source_system/dbs/tests
+            -Dsonar.exclusions=data_platform/tests/**,tests/**,data/source_system/dbs/tests/**,**/__pycache__/**
+            -Dsonar.plsql.jdbc.url=jdbc:oracle:thin:@//127.0.0.1:1521/FREEPDB1
+            -Dsonar.plsql.jdbc.user=ASSUREPLUS
+            -Dsonar.plsql.jdbc.password=${{ env.DICTIONARY_PASSWORD }}
+            -Dsonar.plsql.jdbc.driver.path=${{ runner.temp }}/fema-ojdbc.jar
+            -Dsonar.plsql.jdbc.driver.class=oracle.jdbc.OracleDriver
             -Dsonar.python.coverage.reportPaths=artifacts/test-reports/coverage.xml,artifacts/test-reports/video-coverage.xml
             -Dsonar.qualitygate.wait=true

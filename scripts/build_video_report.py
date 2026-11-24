@@ -1,9 +1,11 @@
 """Build a portable Power BI project from the current Gold snapshot."""
+import base64
 import json
+import os
 from pathlib import Path
 from pyspark.sql import SparkSession
 
-ROOT = Path("/lakehouse/video/FEMA")
+ROOT = Path(os.getenv("FEMA_REPORT_DIR", "/lakehouse/video/FEMA"))
 SCHEMAS = "https://developer.microsoft.com/json-schemas/fabric/item"
 
 
@@ -24,7 +26,6 @@ def build(spark):
         if not rows:
             raise ValueError("Empty Gold mart: " + table)
         # Inline the small aggregate snapshot so the report can reopen offline.
-        import base64
         payload = base64.b64encode(json.dumps([list(r) for r in rows]).encode()).decode()
         names = ", ".join('"' + name + '"' for name in columns)
         expression = f'Table.FromRows(Json.Document(Binary.FromText("{payload}", BinaryEncoding.Base64)), {{{names}}})'

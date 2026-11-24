@@ -32,7 +32,9 @@ def test_iceberg_gold_to_power_bi(tmp_path, monkeypatch):
     runpy.run_module("data_platform.spark.build_gold_marts", run_name="__main__")
     spark = session()
     try:
-        report.build(spark)
+        monkeypatch.setenv("FEMA_REPORT_DIR", str(report.ROOT))
+        runpy.run_path("scripts/build_video_report.py", run_name="__main__")
+        spark = session()
         model = json.loads((report.ROOT / "FEMA.SemanticModel/model.bim").read_text())
         tables = model["model"]["tables"]
         assert [t["name"] for t in tables] == ["entity_counts", "cdc_topic_activity"]
@@ -51,3 +53,21 @@ def test_iceberg_gold_to_power_bi(tmp_path, monkeypatch):
             report.build(spark)
     finally:
         spark.stop()
+
+
+@pytest.mark.parametrize("exists,columns,error", [
+    (False, [], "Required Silver table missing"),
+    (True, ["id"], "source_system column missing"),
+    (True, ["source_system"], "Silver entity summary is empty"),
+])
+def test_gold_rejects_incomplete_inputs(monkeypatch, exists, columns, error):
+    from unittest.mock import MagicMock
+    spark = MagicMock()
+    spark.catalog.tableExists.return_value = exists
+    spark.table.return_value.columns = columns
+    spark.table.return_value.groupBy.return_value.count.return_value.collect.return_value = []
+    monkeypatch.setattr(SparkSession.Builder, "getOrCreate", lambda self: spark)
+    with pytest.raises(RuntimeError, match=error):
+        runpy.run_module("data_platform.spark.build_gold_marts", run_name="__main__")
+    spark.stop.assert_called_once()
+    spark.table.return_value.writeTo.assert_not_called()
