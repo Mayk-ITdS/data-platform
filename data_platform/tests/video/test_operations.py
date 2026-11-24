@@ -14,20 +14,51 @@ def response(data):
     return io.BytesIO(json.dumps(data).encode())
 
 
-@pytest.mark.parametrize("state,tasks", [("RUNNING", ["RUNNING"]), ("FAILED", ["RUNNING"]), ("RUNNING", [])])
-def test_source_health(monkeypatch, state, tasks):
-    data = {e: {"info": {"config": {"connector.class": "test." + e}},
-                "status": {"connector": {"state": state}, "tasks": [{"state": t} for t in tasks]}}
-            for e in ["SqlServerConnector", "OracleConnector", "Other"]}
+@pytest.fixture
+def sources(monkeypatch):
+    data = {}
+    for name, prefix, connector_class in [
+        ("abassurance-sqlserver", "abassurance", "SqlServerConnector"),
+        ("assureplus-oracle-v2", "assureplus_v2", "OracleConnector"),
+    ]:
+        data[name] = {
+            "info": {"config": {"topic.prefix": prefix, "connector.class": "test." + connector_class}},
+            "status": {"connector": {"state": "RUNNING"}, "tasks": [{"state": "RUNNING"}]},
+        }
     monkeypatch.setattr(check, "urlopen", lambda *a, **k: response(data))
+    return data
+
+
+def test_source_health(sources, monkeypatch):
     run = Mock()
     monkeypatch.setattr(check.subprocess, "run", run)
-    if tasks and state == "RUNNING":
+    check.check()
+    assert "kafka-get-offsets.sh" in run.call_args.args[0][3]
+
+
+@pytest.mark.parametrize("fault,message", [
+    ("missing", "Missing connector"), ("prefix", "Unexpected topic prefix"),
+    ("class", "Unexpected connector class"), ("connector", "Connector is not ready"),
+    ("empty tasks", "Connector is not ready"), ("failed task", "Connector is not ready"),
+])
+def test_invalid_source_stops_before_offsets(sources, monkeypatch, fault, message):
+    name = "assureplus-oracle-v2"
+    detail = sources[name]
+    if fault == "missing":
+        del sources[name]
+    elif fault == "prefix":
+        detail["info"]["config"]["topic.prefix"] = "different"
+    elif fault == "class":
+        detail["info"]["config"]["connector.class"] = "test.SqlServerConnector"
+    elif fault == "connector":
+        detail["status"]["connector"]["state"] = "FAILED"
+    else:
+        detail["status"]["tasks"] = [] if fault == "empty tasks" else [{"state": "FAILED"}]
+    run = Mock()
+    monkeypatch.setattr(check.subprocess, "run", run)
+    with pytest.raises(RuntimeError, match=message + ": " + name):
         check.check()
-        assert "kafka-get-offsets.sh" in run.call_args.args[0][3]
-        del data["OracleConnector"]
-    with pytest.raises(RuntimeError):
-        check.check()
+    run.assert_not_called()
 
 
 def test_sonar_request_and_pagination(monkeypatch, capsys):
@@ -115,7 +146,7 @@ def test_cli_entry_points(monkeypatch, tmp_path):
 
     import urllib.request
     monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: response({}))
-    with pytest.raises(RuntimeError, match="Expected both"):
+    with pytest.raises(RuntimeError, match="Missing connector: abassurance-sqlserver"):
         runpy.run_path(str(root / "scripts/check_video_sources.py"), run_name="__main__")
     monkeypatch.setattr(sys, "argv", ["sonar", "project", "--pull-request", "57"])
     def sonar_response(req, **kwargs):

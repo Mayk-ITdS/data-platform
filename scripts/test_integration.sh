@@ -4,6 +4,185 @@ set -Eeuo pipefail
 cd "$(dirname "$0")/.."
 
 ROOT="$PWD"
+
+if [[ "${1:-}" == "--aliases-only" ]]; then
+
+    export DEMO_WIDTH="$(tput cols 2>/dev/null || echo 120)"
+
+    center_output() {
+        python -u -c '
+import os
+import re
+import sys
+
+width = int(os.environ["DEMO_WIDTH"])
+block_width = 100
+padding = " " * max(0, (width - block_width) // 2)
+
+for line in sys.stdin:
+    print(padding + line.rstrip("\n"), flush=True)
+'
+    }
+
+    exec > >(center_output) 2>&1
+    export COLUMNS=100
+
+
+    export PYTHONPATH="$ROOT:${PYTHONPATH:-}"
+    export PYTHONUNBUFFERED=1
+
+    BLUE='\033[1;36m'
+    RED='\033[1;31m'
+    GREEN='\033[1;32m'
+    RESET='\033[0m'
+
+    printf "\n${BLUE}"
+    printf "==================================================\n"
+    printf " FEMA DATA PLATFORM | VALIDATION BLOC 3\n"
+    printf " Correction du bug : alias AB_ / AP_\n"
+    printf " Fonction : typed_value()\n"
+    printf "==================================================\n"
+    printf "${RESET}\n"
+
+    python - <<'PYTEST'
+import tempfile
+from pathlib import Path
+
+import pytest
+
+from data_platform.spark import canonical_silver_extensions as silver
+
+RED = "\033[1;31m"
+GREEN = "\033[1;32m"
+BLUE = "\033[1;36m"
+RESET = "\033[0m"
+
+source = Path(silver.__file__)
+code = source.read_text()
+
+start = code.index(
+    'raw = F.coalesce(jsonfield("record_json", "AP_" + suffix),'
+)
+end = code.index(
+    'jsonfield("record_json", "AB_" + suffix))',
+    start
+) + len('jsonfield("record_json", "AB_" + suffix))')
+
+broken_code = (
+    code[:start]
+    + 'raw = jsonfield("record_json", "AB_" + suffix)'
+    + code[end:]
+)
+
+test_path = Path(
+    "data_platform/tests/integration/test_typed_value.py"
+).resolve()
+
+labels = [
+    "Resolution AB vers AP",
+    "Resolution AP vers AB",
+    "Priorite de l'alias AP",
+    "Gestion des valeurs NULL",
+    "Respect du schema source",
+]
+
+
+class Results:
+    def __init__(self):
+        self.reports = []
+
+    def pytest_runtest_logreport(self, report):
+        if report.when == "call":
+            self.reports.append(report)
+
+    def display(self):
+        for label, report in zip(labels, self.reports):
+            color = GREEN if report.passed else RED
+            status = "PASS" if report.passed else "FAIL"
+            print(f"  {label:<36} {color}{status}{RESET}")
+
+
+with tempfile.TemporaryDirectory(prefix="fema-red-") as tmp:
+    broken = Path(tmp) / "broken_silver.py"
+    broken.write_text(broken_code)
+
+    original = (
+        "from data_platform.spark.canonical_silver_extensions"
+        " import typed_value"
+    )
+
+    test_code = test_path.read_text()
+    assert test_code.count(original) == 1
+
+    red_test = Path(tmp) / "test_red.py"
+    red_test.write_text(
+        test_code.replace(
+            original,
+            "from broken_silver import typed_value",
+            1
+        )
+    )
+
+    print(f"\n{RED}01 | RED - AVANT CORRECTION{RESET}\n")
+
+    results = Results()
+
+    status = pytest.main([
+        str(red_test),
+        "-k", "test_typed_alias",
+        "-q",
+        "--tb=short",
+        "--show-capture=no",
+        "--disable-warnings",
+        "--color=yes",
+    ], plugins=[results])
+
+    print()
+    results.display()
+
+    failures = [
+        r for r in results.reports if r.failed
+    ]
+
+    if (
+        status != pytest.ExitCode.TESTS_FAILED
+        or len(results.reports) != 5
+        or len(failures) != 2
+        or not all(
+            "assert result.first().age == expected" in r.longreprtext
+            for r in failures
+        )
+    ):
+        raise SystemExit(
+            "ERREUR : regression attendue non reproduite"
+        )
+
+    print(f"\n{RED}Regression reproduite : "
+          f"2 echecs attendus.{RESET}", flush=True)
+
+PYTEST
+
+    sleep 5
+
+    printf "\n${GREEN}02 | GREEN - APRES CORRECTION${RESET}\n\n"
+
+    python -m pytest \
+        data_platform/tests/integration/test_typed_value.py \
+        -k test_typed_alias \
+        -q --tb=short --disable-warnings --color=yes
+
+    printf "\n${GREEN}"
+    printf "==================================================\n"
+    printf " VALIDATION DE LA CORRECTION : SUCCESS\n"
+    printf " RED   : regression reproduite\n"
+    printf " GREEN : 5/5 tests valides\n"
+    printf "==================================================\n"
+    printf "${RESET}\n"
+
+    sleep 5
+    exit 0
+fi
+
 RED_DIR="$(mktemp -d "$ROOT/.fema_red_XXXXXX")"
 LOG_DIR="$(mktemp -d /tmp/fema-test-results.XXXXXX)"
 
@@ -49,7 +228,7 @@ test = Path("tests/spark/test_cdc_alias_regression.py")
 
 code = source.read_text()
 
-old = 'raw = F.coalesce(jsonfield("record_json", "AP_" + suffix),\n                         jsonfield("record_json", "AB_" + suffix))'
+old = 'raw = F.coalesce(jsonfield("record_json", "AP_" + suffix),\n jsonfield("record_json", "AB_" + suffix))'
 if code.count(old) != 1:
     raise RuntimeError("Cannot locate the typed AB/AP fallback for the isolated mutation")
 (root / "broken_silver.py").write_text(code.replace(old, 'raw = jsonfield("record_json", "AB_" + suffix)', 1))
