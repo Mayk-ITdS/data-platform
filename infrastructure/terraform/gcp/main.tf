@@ -34,8 +34,13 @@ resource "google_compute_network" "fema" {
   auto_create_subnetworks = false
 }
 resource "google_compute_subnetwork" "fema" {
-  name          = "fema-subnet"
-  region        = var.region
+  name   = "fema-subnet"
+  region = var.region
+  log_config {
+    aggregation_interval = "INTERVAL_5_SEC"
+    flow_sampling        = 0.5
+    metadata             = "INCLUDE_ALL_METADATA"
+  }
   network       = google_compute_network.fema.id
   ip_cidr_range = "10.42.0.0/24"
 }
@@ -69,6 +74,7 @@ resource "google_compute_disk" "ceph" {
 }
 resource "google_compute_instance" "fema" {
   name         = "fema-platform"
+  metadata     = { block-project-ssh-keys = "TRUE" }
   machine_type = "e2-standard-8"
   zone         = var.zone
   boot_disk {

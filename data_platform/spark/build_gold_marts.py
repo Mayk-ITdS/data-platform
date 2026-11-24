@@ -37,7 +37,8 @@ try:
         if "source_system" not in frame.columns:
             raise RuntimeError(f"source_system column missing in {source}")
         for row in frame.groupBy("source_system").count().collect():
-            counts.append((name, row["source_system"], row["count"], now))
+            source_system, record_count = row
+            counts.append((name, source_system, record_count, now))
         print("READ:", source, flush=True)
 
     schema = T.StructType([

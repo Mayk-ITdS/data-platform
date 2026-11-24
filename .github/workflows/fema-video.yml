@@ -5,19 +5,6 @@ on:
 permissions:
   contents: read
 jobs:
-  aliases:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: python -m pip install pytest==8.4.2 pyspark==4.1.0
-      - run: python -m pytest -q data_platform/tests/integration/test_typed_value.py
   infrastructure:
     runs-on: ubuntu-latest
     defaults:
@@ -31,6 +18,7 @@ jobs:
       - run: terraform fmt -check
       - run: terraform init -backend=false -input=false
       - run: terraform validate
+      - run: terraform test
   sonar-recording:
     runs-on: ubuntu-latest
     steps:
@@ -38,4 +26,4 @@ jobs:
       - name: Show master Quality Gate and open security findings
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: python scripts/sonar_video.py Mayk-ITdS_data-platform --branch master
+        run: python scripts/sonar_video.py Mayk-ITdS_data-platform --branch master --organization "${{ vars.SONAR_ORGANIZATION }}"

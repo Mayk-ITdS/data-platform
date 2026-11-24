@@ -63,9 +63,34 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  video-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install pytest==8.4.2 coverage==7.10.7 pyspark==4.1.0
+      - name: Test both databases' CDC plans, Spark aliases, Gold and report generation
+        env:
+          SPARK_LOCAL_IP: 127.0.0.1
+          PYSPARK_SUBMIT_ARGS: --jars /tmp/iceberg-video.jar pyspark-shell
+        run: |
+          curl --fail --retry 3 --silent --show-error --output /tmp/iceberg-video.jar https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-spark-runtime-4.1_2.13/1.12.0/iceberg-spark-runtime-4.1_2.13-1.12.0.jar
+          echo '3123c3798af642dd537230923548e013ef41cc28b6626e5225808cf5670a0f82  /tmp/iceberg-video.jar' | sha256sum -c -
+          python -m coverage run --source=. -m pytest -q data_platform/tests/video data_platform/tests/unit data_platform/tests/integration/test_typed_value.py
+          python -m coverage xml -o video-coverage.xml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fema-video-coverage
+          path: video-coverage.xml
   sonarqube:
     name: SonarQube Quality Gate
-    needs: [unit-and-iceberg, kafka-e2e]
+    needs: [unit-and-iceberg, kafka-e2e, video-coverage]
     if: >-
       ${{ success() &&
           vars.SONAR_PROJECT_KEY != '' &&
@@ -83,6 +108,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: fema-phase1-reports
+          path: artifacts/test-reports/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: fema-video-coverage
           path: artifacts/test-reports/
 
       - name: Normalize Docker coverage paths
@@ -136,5 +166,5 @@ jobs:
             -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.python.version=3.12
             -Dsonar.exclusions=data_platform/tests/**,**/__pycache__/**
-            -Dsonar.python.coverage.reportPaths=artifacts/test-reports/coverage.xml
+            -Dsonar.python.coverage.reportPaths=artifacts/test-reports/coverage.xml,artifacts/test-reports/video-coverage.xml
             -Dsonar.qualitygate.wait=true
