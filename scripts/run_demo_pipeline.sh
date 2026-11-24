@@ -42,7 +42,8 @@ if [[ -n "${FEMA_REST_URI:-}" ]]; then
     --conf "spark.sql.catalog.lakehouse.s3.endpoint=${FEMA_S3_ENDPOINT:?}"
     --conf spark.sql.catalog.lakehouse.s3.path-style-access=true)
   : "${AWS_ACCESS_KEY_ID:?}" "${AWS_SECRET_ACCESS_KEY:?}"
-  container_env=(--add-host ceph-rgw:host-gateway -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_REGION=us-east-1)
+  container_env=(-v /etc/fema-rgw/client-cacerts:/etc/fema/client-cacerts:ro
+    -e JAVA_TOOL_OPTIONS=-Djavax.net.ssl.trustStore=/etc/fema/client-cacerts --add-host ceph-rgw:host-gateway -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_REGION=us-east-1)
 fi
 spark_job() {
   local script="$1"

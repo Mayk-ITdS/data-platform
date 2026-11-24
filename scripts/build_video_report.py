@@ -3,6 +3,7 @@ import base64
 import json
 import os
 from pathlib import Path
+from pyspark import SparkConf
 from pyspark.sql import SparkSession
 
 ROOT = Path(os.getenv("FEMA_REPORT_DIR", "/lakehouse/video/FEMA"))
@@ -65,7 +66,8 @@ def build(spark):
 
 
 if __name__ == "__main__":
-    session = SparkSession.builder.getOrCreate()
+    session = (SparkSession.builder.master(SparkConf().get("spark.master", "local[2]"))
+               .appName("FEMA-Power-BI-Gold").getOrCreate())
     try:
         build(session)
     finally:

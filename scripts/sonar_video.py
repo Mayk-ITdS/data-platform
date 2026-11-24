@@ -22,10 +22,14 @@ def query(endpoint, **args):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("project")
-    parser.add_argument("--branch")
+    scope_args = parser.add_mutually_exclusive_group()
+    scope_args.add_argument("--branch")
+    scope_args.add_argument("--pull-request")
     parser.add_argument("--organization", default="mayk-itds")
     args = parser.parse_args()
     scope = {"branch": args.branch} if args.branch else {}
+    if args.pull_request:
+        scope = {"pullRequest": args.pull_request}
     gate = query("qualitygates/project_status", projectKey=args.project, **scope)["projectStatus"]
     print("Quality Gate:", gate["status"])
     for c in gate["conditions"]:

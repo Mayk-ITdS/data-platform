@@ -20,10 +20,10 @@ echo "=== Step 1: Kafka -> Bronze -> Silver -> Gold (ephemeral Spark containers)
 bash scripts/run_demo_pipeline.sh --once
 
 report="$ROOT/infrastructure/volumes/lakehouse/video/FEMA/FEMA.pbip"
-test -s "$report"
+[[ -s "$report" ]]
 if command -v wslpath >/dev/null && command -v explorer.exe >/dev/null; then
   echo "Ouverture du rapport Power BI Desktop"
-  explorer.exe "$(wslpath -w "$report")" || test "$?" -eq 1
+  explorer.exe "$(wslpath -w "$report")" || [[ "$?" -eq 1 ]]
 else
   echo "Ouvrir dans Power BI Desktop : $report"
 fi
