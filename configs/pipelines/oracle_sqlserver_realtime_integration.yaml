@@ -3,115 +3,150 @@ kind: DataPipeline
 metadata:
   name: oracle-sqlserver-realtime-integration
   namespace: data-platform
-
 spec:
   domain: insurance
-  type: realtime_integration
-
   sources:
-    - name: oracle_abassurance
-      type: oracle
-      connectionSecretRef: oracle-abassurance-secret
-      tables:
-        - sourceTable: AB_CLIENT
-          primaryKey: AB_CLIENT_ID
-          targetEntity: client
-          bronzeTable: bronze_insurance.oracle_ab_client_raw
-          silverTable: silver_insurance.client_unified
-          transformationProfile: oracle_client_to_unified_client
-
-
-        - sourceTable: AB_CONTRAT
-          primaryKey: AB_POLICY_NUMBER
-          targetEntity: contract
-          bronzeTable: bronze_insurance.oracle_ab_contrat_raw
-          silverTable: silver_insurance.contract_unified
-          transformationProfile: oracle_contract_to_unified_contract
-
-        - sourceTable: AB_SINISTRE
-          primaryKey: AB_CLAIM_ID
-          targetEntity: claim
-          bronzeTable: bronze_insurance.oracle_ab_sinistre_raw
-          silverTable: silver_insurance.claim_unified
-          transformationProfile: oracle_claim_to_unified_claim
-
-        - sourceTable: AB_PAIEMENT
-          primaryKey: AB_PAYMENT_ID
-          targetEntity: payment
-          bronzeTable: bronze_insurance.oracle_ab_paiement_raw
-          silverTable: silver_insurance.payment_unified
-          transformationProfile: oracle_payment_to_unified_payment
-
-      cdc:
-        engine: debezium
-        snapshotMode: initial
-
-    - name: sqlserver_assureplus
-      type: sqlserver
-      connectionSecretRef: sqlserver-assureplus-secret
-      tables:
-        - sourceTable: AP_USERS
-          primaryKey: AP_USER_ID
-          targetEntity: client
-          bronzeTable: bronze_insurance.sqlserver_ap_users_raw
-          silverTable: silver_insurance.client_unified
-          transformationProfile: sqlserver_user_to_unified_client
-
-        - sourceTable: AP_CONTRACTS
-          primaryKey: AP_CONTRACT_REF
-          targetEntity: contract
-          bronzeTable: bronze_insurance.sqlserver_ap_contracts_raw
-          silverTable: silver_insurance.contract_unified
-          transformationProfile: sqlserver_contract_to_unified_contract
-
-        - sourceTable: AP_CLAIMS
-          primaryKey: AP_SINISTRE_NUM
-          targetEntity: claim
-          bronzeTable: bronze_insurance.sqlserver_ap_claims_raw
-          silverTable: silver_insurance.claim_unified
-          transformationProfile: sqlserver_claim_to_unified_claim
-
-        - sourceTable: AP_PAYMENTS
-          primaryKey: AP_PAYMENT_REF
-          targetEntity: payment
-          bronzeTable: bronze_insurance.sqlserver_ap_payments_raw
-          silverTable: silver_insurance.payment_unified
-          transformationProfile: sqlserver_payment_to_unified_payment
-
-      cdc:
-        engine: debezium
-        snapshotMode: initial
-
+  - name: abassurance
+    type: sqlserver
+    connectionSecretRef:
+      name: abassurance-connection
+    tables:
+    - sourceTable: Building
+      primaryKey: BuildingId
+      targetEntity: building
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.building
+    - sourceTable: Claims
+      primaryKey: ClaimId
+      targetEntity: claim
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.claim
+    - sourceTable: Holder
+      primaryKey: HolderId
+      targetEntity: holder
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.holder
+    - sourceTable: HolderClassification
+      primaryKey: HolderClassificationId
+      targetEntity: holder_classification
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.holder_classification
+    - sourceTable: Policy
+      primaryKey: PolicyId
+      targetEntity: policy
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.policy
+    - sourceTable: PolicyRating
+      primaryKey: PolicyRatingId
+      targetEntity: policy_rating
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.policy_rating
+    - sourceTable: PolicyTerms
+      primaryKey: PolicyTermsId
+      targetEntity: policy_terms
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.policy_terms
+    - sourceTable: PolicyUnit
+      primaryKey: PolicyUnitId
+      targetEntity: policy_unit
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.policy_unit
+    - sourceTable: PremiumFinancial
+      primaryKey: PremiumFinancialId
+      targetEntity: premium_financial
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.premium_financial
+    - sourceTable: PrivateClient
+      primaryKey: HolderId
+      targetEntity: private_client
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.private_client
+    - sourceTable: Property
+      primaryKey: PropertyId
+      targetEntity: property
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.property
+    - sourceTable: PropertyUsage
+      primaryKey: PropertyUsageId
+      targetEntity: property_usage
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.property_usage
+    - sourceTable: Risks
+      primaryKey: RiskId
+      targetEntity: risks
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.risks
+    cdc:
+      engine: debezium
+      snapshotMode: initial
+  - name: assureplus
+    type: oracle
+    connectionSecretRef:
+      name: assureplus-connection
+    tables:
+    - sourceTable: CLAIM
+      primaryKey: CLAIM_ID
+      targetEntity: claim
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.claim
+    - sourceTable: HOLDER
+      primaryKey: HOLDER_CONTEXT
+      targetEntity: holder
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.holder
+    - sourceTable: POLICY
+      primaryKey: POLICY_RECORD_ID
+      targetEntity: policy
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.policy
+    - sourceTable: POLICY_BUILDING_RISK
+      primaryKey: POLICY_RECORD_ID
+      targetEntity: risks
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.risks
+    - sourceTable: POLICY_BUILDING_TECHNICAL
+      primaryKey: POLICY_RECORD_ID
+      targetEntity: building
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.building
+    - sourceTable: POLICY_CONTRACT
+      primaryKey: POLICY_RECORD_ID
+      targetEntity: policy_terms
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.policy_terms
+    - sourceTable: POLICY_HOLDER_CLASSIFICATION
+      primaryKey: POLICY_RECORD_ID
+      targetEntity: holder_classification
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.holder_classification
+    - sourceTable: POLICY_PREMIUM_FINANCIAL
+      primaryKey: POLICY_RECORD_ID
+      targetEntity: premium_financial
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.premium_financial
+    - sourceTable: POLICY_PROPERTY_LOCATION
+      primaryKey: POLICY_RECORD_ID
+      targetEntity: property
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.property
+    - sourceTable: POLICY_PROPERTY_USAGE
+      primaryKey: POLICY_RECORD_ID
+      targetEntity: property_usage
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.property_usage
+    - sourceTable: POLICY_RATING
+      primaryKey: POLICY_RECORD_ID
+      targetEntity: policy_rating
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.policy_rating
+    - sourceTable: PRIVATE_CLIENT
+      primaryKey: HOLDER_CONTEXT
+      targetEntity: private_client
+      bronzeTable: lakehouse.bronze.cdc_events
+      silverTable: lakehouse.silver.private_client
+    cdc:
+      engine: debezium
+      snapshotMode: initial
   kafka:
-    topicPrefix: insurance.raw
-    partitions: 6
-    replicationFactor: 3
-    retentionDays: 7
-    dlqTopic: insurance.dlq
-
-  processing:
-    engine: spark_structured_streaming
-    transformationModule: transformations.insurance.oracle_sqlserver_unifier
-    checkpointLocation: s3a://checkpoints/insurance/oracle_sqlserver/
-    resources:
-      driverMemory: 2g
-      executorMemory: 4g
-      executorInstances: 2
-
-  storage:
-    profile: minio-iceberg
-    bronzeNamespace: bronze_insurance
-    silverNamespace: silver_insurance
-    goldNamespace: gold_insurance
-
-  dbt:
-    enabled: true
-    project: dbt/insurance
-    selector: tag:insurance_gold
-
-  serving:
-    - type: trino
-      useCase: bi
-
-    - type: api
-      sourceTable: gold_insurance.customer_360
+    partitions: 1
+    replicationFactor: 1

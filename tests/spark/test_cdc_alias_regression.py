@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from unittest.mock import patch
 
-from pyspark.sql import functions as F
+from pyspark.sql import SparkSession, functions as F
 
 import data_platform.spark.canonical_silver_extensions as silver
 
@@ -37,7 +37,7 @@ def source_row(topic, values):
 
 
 def run_test():
-    spark = silver.spark
+    spark = SparkSession.builder.getOrCreate()
 
     inventory = {
         ORACLE_TOPIC: [
@@ -82,7 +82,7 @@ def run_test():
         ),
     ]
 
-    with patch.object(silver, "META", inventory):
+    with patch.object(silver, "META", inventory, create=True):
         for label, payload, expected_email in oracle_cases:
             raw = spark.createDataFrame(
                 [source_row(ORACLE_TOPIC, payload)]
@@ -129,4 +129,4 @@ if __name__ == "__main__":
     try:
         run_test()
     finally:
-        silver.spark.stop()
+        SparkSession.builder.getOrCreate().stop()

@@ -1,0 +1,58 @@
+services:
+  catalog-db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: iceberg
+      POSTGRES_USER: iceberg
+      POSTGRES_PASSWORD: ${CATALOG_PASSWORD:?}
+    volumes:
+      - catalog-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "iceberg"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  iceberg-rest:
+    image: tabulario/iceberg-rest:1.6.0
+    restart: unless-stopped
+    depends_on:
+      catalog-db:
+        condition: service_healthy
+    extra_hosts:
+      - ceph-rgw:host-gateway
+    environment:
+      JAVA_TOOL_OPTIONS: -Djavax.net.ssl.trustStore=/etc/fema/client-cacerts
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?}
+      AWS_REGION: us-east-1
+      CATALOG_CATALOG__IMPL: org.apache.iceberg.jdbc.JdbcCatalog
+      CATALOG_URI: jdbc:postgresql://catalog-db:5432/iceberg
+      CATALOG_JDBC_USER: iceberg
+      CATALOG_JDBC_PASSWORD: ${CATALOG_PASSWORD:?}
+      CATALOG_WAREHOUSE: s3://fema-lakehouse/warehouse
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: https://ceph-rgw:7480
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+    volumes:
+      - /etc/fema-rgw/client-cacerts:/etc/fema/client-cacerts:ro
+  trino:
+    image: trinodb/trino:466
+    restart: unless-stopped
+    extra_hosts:
+      - ceph-rgw:host-gateway
+    environment:
+      JAVA_TOOL_OPTIONS: -Djavax.net.ssl.trustStore=/etc/fema/client-cacerts
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - /etc/fema-rgw/client-cacerts:/etc/fema/client-cacerts:ro
+      - ../trino/catalog/iceberg.properties.template:/etc/trino/catalog/iceberg.properties:ro
+networks:
+  default:
+    external: true
+    name: fema-cdc
+volumes:
+  catalog-data:

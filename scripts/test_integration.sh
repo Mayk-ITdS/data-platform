@@ -49,28 +49,10 @@ test = Path("tests/spark/test_cdc_alias_regression.py")
 
 code = source.read_text()
 
-correct = '''                value = F.coalesce(
-                    F.get_json_object(
-                        F.col("record_json"),
-                        f"$.AP_{suffix}"
-                    ),
-                    F.get_json_object(
-                        F.col("record_json"),
-                        f"$.AB_{suffix}"
-                    )
-                )'''
-
-defective = '''                value = F.get_json_object(
-                    F.col("record_json"),
-                    f"$.AB_{suffix}"
-                )'''
-
-if code.count(correct) != 1:
-    raise RuntimeError("Cannot identify production AB/AP mapping")
-
-(root / "broken_silver.py").write_text(
-    code.replace(correct, defective, 1)
-)
+old = 'raw = F.coalesce(jsonfield("record_json", "AP_" + suffix),\n                         jsonfield("record_json", "AB_" + suffix))'
+if code.count(old) != 1:
+    raise RuntimeError("Cannot locate the typed AB/AP fallback for the isolated mutation")
+(root / "broken_silver.py").write_text(code.replace(old, 'raw = jsonfield("record_json", "AB_" + suffix)', 1))
 
 test_code = test.read_text()
 original_import = (

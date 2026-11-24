@@ -1,5 +1,6 @@
 import json
 import re
+import os
 from pyspark.sql import SparkSession
 from pyspark.sql import types as T
 
@@ -14,10 +15,10 @@ spark = (
         "spark.sql.catalog.lakehouse",
         "org.apache.iceberg.spark.SparkCatalog"
     )
-    .config("spark.sql.catalog.lakehouse.type", "hadoop")
+    .config("spark.sql.catalog.lakehouse.type", os.getenv("FEMA_CATALOG_TYPE", "hadoop"))
     .config(
         "spark.sql.catalog.lakehouse.warehouse",
-        "/lakehouse/warehouse"
+        os.getenv("FEMA_WAREHOUSE", "/lakehouse/warehouse")
     )
     .getOrCreate()
 )

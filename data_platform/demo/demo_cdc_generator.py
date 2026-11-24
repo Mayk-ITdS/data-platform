@@ -23,7 +23,7 @@ SQL_TABLES = {
     "Policy": ("PolicyId", None),
     "PolicyRating": ("PolicyRatingId", "RateMethod"),
     "PolicyTerms": ("PolicyTermsId", "PolicyCost"),
-    "PolicyUnit": ("PolicyUnitId", None),
+    "PolicyUnit": ("PolicyUnitId", "PolicyId"),
     "PremiumFinancial": ("PremiumFinancialId", "FederalPolicyFee"),
     "PrivateClient": ("HolderId", "LoyaltyScore"),
     "Property": ("PropertyId", "ReportedCity"),
@@ -43,6 +43,108 @@ ORACLE_TABLES = {
     "POLICY_PROPERTY_USAGE": ("POLICY_RECORD_ID", "OCCUPANCY_CATEGORY"),
     "POLICY_RATING": ("POLICY_RECORD_ID", "RATE_METHOD"),
     "PRIVATE_CLIENT": ("HOLDER_CONTEXT", "STATE_CODE"),
+}
+STATEMENTS = {
+    ('SQLSERVER', 'Building'): (
+        'SELECT TOP (1) [BuildingId] FROM [dbo].[Building] ORDER BY [BuildingId]',
+        'UPDATE [dbo].[Building] SET [BuildingCategory]=[BuildingCategory] WHERE [BuildingId]=?',
+    ),
+    ('SQLSERVER', 'Claims'): (
+        'SELECT TOP (1) [ClaimId] FROM [dbo].[Claims] ORDER BY [ClaimId]',
+        'UPDATE [dbo].[Claims] SET [ClaimId]=[ClaimId] WHERE [ClaimId]=?',
+    ),
+    ('SQLSERVER', 'Holder'): (
+        'SELECT TOP (1) [HolderId] FROM [dbo].[Holder] ORDER BY [HolderId]',
+        'UPDATE [dbo].[Holder] SET [HolderType]=[HolderType] WHERE [HolderId]=?',
+    ),
+    ('SQLSERVER', 'HolderClassification'): (
+        'SELECT TOP (1) [HolderClassificationId] FROM [dbo].[HolderClassification] ORDER BY [HolderClassificationId]',
+        'UPDATE [dbo].[HolderClassification] SET [CoverageSignal]=[CoverageSignal] WHERE [HolderClassificationId]=?',
+    ),
+    ('SQLSERVER', 'Policy'): (
+        'SELECT TOP (1) [PolicyId] FROM [dbo].[Policy] ORDER BY [PolicyId]',
+        'UPDATE [dbo].[Policy] SET [PolicyId]=[PolicyId] WHERE [PolicyId]=?',
+    ),
+    ('SQLSERVER', 'PolicyRating'): (
+        'SELECT TOP (1) [PolicyRatingId] FROM [dbo].[PolicyRating] ORDER BY [PolicyRatingId]',
+        'UPDATE [dbo].[PolicyRating] SET [RateMethod]=[RateMethod] WHERE [PolicyRatingId]=?',
+    ),
+    ('SQLSERVER', 'PolicyTerms'): (
+        'SELECT TOP (1) [PolicyTermsId] FROM [dbo].[PolicyTerms] ORDER BY [PolicyTermsId]',
+        'UPDATE [dbo].[PolicyTerms] SET [PolicyCost]=[PolicyCost] WHERE [PolicyTermsId]=?',
+    ),
+    ('SQLSERVER', 'PolicyUnit'): (
+        'SELECT TOP (1) [PolicyUnitId] FROM [dbo].[PolicyUnit] ORDER BY [PolicyUnitId]',
+        'UPDATE [dbo].[PolicyUnit] SET [PolicyId]=[PolicyId] WHERE [PolicyUnitId]=?',
+    ),
+    ('SQLSERVER', 'PremiumFinancial'): (
+        'SELECT TOP (1) [PremiumFinancialId] FROM [dbo].[PremiumFinancial] ORDER BY [PremiumFinancialId]',
+        'UPDATE [dbo].[PremiumFinancial] SET [FederalPolicyFee]=[FederalPolicyFee] WHERE [PremiumFinancialId]=?',
+    ),
+    ('SQLSERVER', 'PrivateClient'): (
+        'SELECT TOP (1) [HolderId] FROM [dbo].[PrivateClient] ORDER BY [HolderId]',
+        'UPDATE [dbo].[PrivateClient] SET [LoyaltyScore]=[LoyaltyScore] WHERE [HolderId]=?',
+    ),
+    ('SQLSERVER', 'Property'): (
+        'SELECT TOP (1) [PropertyId] FROM [dbo].[Property] ORDER BY [PropertyId]',
+        'UPDATE [dbo].[Property] SET [ReportedCity]=[ReportedCity] WHERE [PropertyId]=?',
+    ),
+    ('SQLSERVER', 'PropertyUsage'): (
+        'SELECT TOP (1) [PropertyUsageId] FROM [dbo].[PropertyUsage] ORDER BY [PropertyUsageId]',
+        'UPDATE [dbo].[PropertyUsage] SET [OccupancyCategory]=[OccupancyCategory] WHERE [PropertyUsageId]=?',
+    ),
+    ('SQLSERVER', 'Risks'): (
+        'SELECT TOP (1) [RiskId] FROM [dbo].[Risks] ORDER BY [RiskId]',
+        'UPDATE [dbo].[Risks] SET [RatedFloodZone]=[RatedFloodZone] WHERE [RiskId]=?',
+    ),
+    ('ORACLE', 'CLAIM'): (
+        'SELECT "CLAIM_ID" FROM "CLAIM" ORDER BY "CLAIM_ID" FETCH FIRST 1 ROW ONLY',
+        'UPDATE "CLAIM" SET "BUILDING_DAMAGE_AMOUNT"="BUILDING_DAMAGE_AMOUNT" WHERE "CLAIM_ID"=:pk',
+    ),
+    ('ORACLE', 'HOLDER'): (
+        'SELECT "HOLDER_CONTEXT" FROM "HOLDER" ORDER BY "HOLDER_CONTEXT" FETCH FIRST 1 ROW ONLY',
+        'UPDATE "HOLDER" SET "HOLDER_TYPE"="HOLDER_TYPE" WHERE "HOLDER_CONTEXT"=:pk',
+    ),
+    ('ORACLE', 'POLICY'): (
+        'SELECT "POLICY_RECORD_ID" FROM "POLICY" ORDER BY "POLICY_RECORD_ID" FETCH FIRST 1 ROW ONLY',
+        'UPDATE "POLICY" SET "GROUP_SIGNATURE"="GROUP_SIGNATURE" WHERE "POLICY_RECORD_ID"=:pk',
+    ),
+    ('ORACLE', 'POLICY_BUILDING_RISK'): (
+        'SELECT "POLICY_RECORD_ID" FROM "POLICY_BUILDING_RISK" ORDER BY "POLICY_RECORD_ID" FETCH FIRST 1 ROW ONLY',
+        'UPDATE "POLICY_BUILDING_RISK" SET "BUILDING_REPLACEMENT_COST"="BUILDING_REPLACEMENT_COST" WHERE "POLICY_RECORD_ID"=:pk',
+    ),
+    ('ORACLE', 'POLICY_BUILDING_TECHNICAL'): (
+        'SELECT "POLICY_RECORD_ID" FROM "POLICY_BUILDING_TECHNICAL" ORDER BY "POLICY_RECORD_ID" FETCH FIRST 1 ROW ONLY',
+        'UPDATE "POLICY_BUILDING_TECHNICAL" SET "BUILDING_CATEGORY"="BUILDING_CATEGORY" WHERE "POLICY_RECORD_ID"=:pk',
+    ),
+    ('ORACLE', 'POLICY_CONTRACT'): (
+        'SELECT "POLICY_RECORD_ID" FROM "POLICY_CONTRACT" ORDER BY "POLICY_RECORD_ID" FETCH FIRST 1 ROW ONLY',
+        'UPDATE "POLICY_CONTRACT" SET "POLICY_COST"="POLICY_COST" WHERE "POLICY_RECORD_ID"=:pk',
+    ),
+    ('ORACLE', 'POLICY_HOLDER_CLASSIFICATION'): (
+        'SELECT "POLICY_RECORD_ID" FROM "POLICY_HOLDER_CLASSIFICATION" ORDER BY "POLICY_RECORD_ID" FETCH FIRST 1 ROW ONLY',
+        'UPDATE "POLICY_HOLDER_CLASSIFICATION" SET "COVERAGE_SIGNAL"="COVERAGE_SIGNAL" WHERE "POLICY_RECORD_ID"=:pk',
+    ),
+    ('ORACLE', 'POLICY_PREMIUM_FINANCIAL'): (
+        'SELECT "POLICY_RECORD_ID" FROM "POLICY_PREMIUM_FINANCIAL" ORDER BY "POLICY_RECORD_ID" FETCH FIRST 1 ROW ONLY',
+        'UPDATE "POLICY_PREMIUM_FINANCIAL" SET "FEDERAL_POLICY_FEE"="FEDERAL_POLICY_FEE" WHERE "POLICY_RECORD_ID"=:pk',
+    ),
+    ('ORACLE', 'POLICY_PROPERTY_LOCATION'): (
+        'SELECT "POLICY_RECORD_ID" FROM "POLICY_PROPERTY_LOCATION" ORDER BY "POLICY_RECORD_ID" FETCH FIRST 1 ROW ONLY',
+        'UPDATE "POLICY_PROPERTY_LOCATION" SET "REPORTED_CITY"="REPORTED_CITY" WHERE "POLICY_RECORD_ID"=:pk',
+    ),
+    ('ORACLE', 'POLICY_PROPERTY_USAGE'): (
+        'SELECT "POLICY_RECORD_ID" FROM "POLICY_PROPERTY_USAGE" ORDER BY "POLICY_RECORD_ID" FETCH FIRST 1 ROW ONLY',
+        'UPDATE "POLICY_PROPERTY_USAGE" SET "OCCUPANCY_CATEGORY"="OCCUPANCY_CATEGORY" WHERE "POLICY_RECORD_ID"=:pk',
+    ),
+    ('ORACLE', 'POLICY_RATING'): (
+        'SELECT "POLICY_RECORD_ID" FROM "POLICY_RATING" ORDER BY "POLICY_RECORD_ID" FETCH FIRST 1 ROW ONLY',
+        'UPDATE "POLICY_RATING" SET "RATE_METHOD"="RATE_METHOD" WHERE "POLICY_RECORD_ID"=:pk',
+    ),
+    ('ORACLE', 'PRIVATE_CLIENT'): (
+        'SELECT "HOLDER_CONTEXT" FROM "PRIVATE_CLIENT" ORDER BY "HOLDER_CONTEXT" FETCH FIRST 1 ROW ONLY',
+        'UPDATE "PRIVATE_CLIENT" SET "STATE_CODE"="STATE_CODE" WHERE "HOLDER_CONTEXT"=:pk',
+    ),
 }
 HALT = False
 
@@ -111,10 +213,7 @@ def get_plan(conn, tables, system):
         if preferred is not None and preferred.lower() not in columns:
             raise RuntimeError(f"{system}.{table}: expected column missing: {preferred}")
         column = preferred or pk
-        if system == "SQLSERVER":
-            cur.execute(f"SELECT TOP (1) [{pk}] FROM [dbo].[{table}] ORDER BY [{pk}]")
-        else:
-            cur.execute(f'SELECT "{pk}" FROM "{table}" ORDER BY "{pk}" FETCH FIRST 1 ROW ONLY')
+        cur.execute(STATEMENTS[system, table][0])
         row = cur.fetchone()
         if row is None:
             raise RuntimeError(f"{system}.{table}: empty table; cannot generate CDC UPDATE")
@@ -126,12 +225,8 @@ def get_plan(conn, tables, system):
 def touch(conn, system, item):
     table, pk, column, key = item
     cur = conn.cursor()
-    if system == "SQLSERVER":
-        statement = f"UPDATE [dbo].[{table}] SET [{column}]=[{column}] WHERE [{pk}]=?"
-        cur.execute(statement, key)
-    else:
-        statement = f'UPDATE "{table}" SET "{column}"="{column}" WHERE "{pk}"=:pk'
-        cur.execute(statement, {"pk": key})
+    statement = STATEMENTS[system, table][1]
+    cur.execute(statement, key if system == "SQLSERVER" else {"pk": key})
     if cur.rowcount != 1:
         conn.rollback()
         raise RuntimeError(f"{system}.{table}: expected 1 affected row, got {cur.rowcount}")

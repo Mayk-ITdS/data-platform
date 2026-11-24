@@ -1,4 +1,5 @@
 import base64
+import os
 from pyspark.sql import SparkSession, Window
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
@@ -14,10 +15,10 @@ spark = (
         "spark.sql.catalog.lakehouse",
         "org.apache.iceberg.spark.SparkCatalog"
     )
-    .config("spark.sql.catalog.lakehouse.type", "hadoop")
+    .config("spark.sql.catalog.lakehouse.type", os.getenv("FEMA_CATALOG_TYPE", "hadoop"))
     .config(
         "spark.sql.catalog.lakehouse.warehouse",
-        "/lakehouse/warehouse"
+        os.getenv("FEMA_WAREHOUSE", "/lakehouse/warehouse")
     )
     .config("spark.sql.session.timeZone", "UTC")
     .getOrCreate()

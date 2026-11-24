@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import re
 from decimal import Decimal
+import os
 from pyspark.sql import SparkSession, Window, functions as F, types as T
 
 SOURCE_FIELD_MAPPINGS = {
@@ -234,8 +235,8 @@ if __name__ == "__main__":
              .appName("FEMA-Canonical-Silver-Extensions")
              .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
              .config("spark.sql.catalog.lakehouse", "org.apache.iceberg.spark.SparkCatalog")
-             .config("spark.sql.catalog.lakehouse.type", "hadoop")
-             .config("spark.sql.catalog.lakehouse.warehouse", "/lakehouse/warehouse")
+             .config("spark.sql.catalog.lakehouse.type", os.getenv("FEMA_CATALOG_TYPE", "hadoop"))
+             .config("spark.sql.catalog.lakehouse.warehouse", os.getenv("FEMA_WAREHOUSE", "/lakehouse/warehouse"))
              .config("spark.sql.session.timeZone", "UTC")
              .getOrCreate())
     spark.sparkContext.setLogLevel("WARN")

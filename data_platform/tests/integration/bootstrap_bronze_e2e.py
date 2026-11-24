@@ -1,11 +1,12 @@
 """Create the real Bronze table schema in an isolated, empty Iceberg catalog."""
+import os
 from pyspark.sql import SparkSession
 
 spark = (SparkSession.builder.appName('FEMA-E2E-Bronze-Bootstrap')
     .config('spark.sql.extensions', 'org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions')
     .config('spark.sql.catalog.lakehouse', 'org.apache.iceberg.spark.SparkCatalog')
-    .config('spark.sql.catalog.lakehouse.type', 'hadoop')
-    .config('spark.sql.catalog.lakehouse.warehouse', '/lakehouse/warehouse')
+    .config('spark.sql.catalog.lakehouse.type', os.getenv("FEMA_CATALOG_TYPE", "hadoop"))
+    .config('spark.sql.catalog.lakehouse.warehouse', os.getenv("FEMA_WAREHOUSE", "/lakehouse/warehouse"))
     .getOrCreate())
 try:
     spark.sql('CREATE NAMESPACE IF NOT EXISTS lakehouse.bronze')
