@@ -12,22 +12,6 @@ import re
 from decimal import Decimal
 from pyspark.sql import SparkSession, Window, functions as F, types as T
 
-spark = (SparkSession.builder
-         .appName("FEMA-Canonical-Silver-Extensions")
-         .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
-         .config("spark.sql.catalog.lakehouse", "org.apache.iceberg.spark.SparkCatalog")
-         .config("spark.sql.catalog.lakehouse.type", "hadoop")
-         .config("spark.sql.catalog.lakehouse.warehouse", "/lakehouse/warehouse")
-         .config("spark.sql.session.timeZone", "UTC")
-         .getOrCreate())
-spark.sparkContext.setLogLevel("WARN")
-spark.sql("CREATE NAMESPACE IF NOT EXISTS lakehouse.silver")
-
-INV = spark.table("lakehouse.silver.source_schema_inventory").collect()
-META = {}
-for row in INV:
-    META.setdefault(row["topic"], []).append(row.asDict())
-
 SOURCE_FIELD_MAPPINGS = {
     "ORACLE": {
         "PRIVATE_CLIENT": {
@@ -262,6 +246,22 @@ def save(df, name):
     print("Written:", full_name, flush=True)
 
 if __name__ == "__main__":
+    spark = (SparkSession.builder
+             .appName("FEMA-Canonical-Silver-Extensions")
+             .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
+             .config("spark.sql.catalog.lakehouse", "org.apache.iceberg.spark.SparkCatalog")
+             .config("spark.sql.catalog.lakehouse.type", "hadoop")
+             .config("spark.sql.catalog.lakehouse.warehouse", "/lakehouse/warehouse")
+             .config("spark.sql.session.timeZone", "UTC")
+             .getOrCreate())
+    spark.sparkContext.setLogLevel("WARN")
+    spark.sql("CREATE NAMESPACE IF NOT EXISTS lakehouse.silver")
+
+    INV = spark.table("lakehouse.silver.source_schema_inventory").collect()
+    META = {}
+    for row in INV:
+        META.setdefault(row["topic"], []).append(row.asDict())
+
     unit = extract("SQLSERVER", "PolicyUnit", "PolicyUnitId")
     unit = unit.withColumn("canonical_policy_key",
         F.concat_ws(":", F.lit("SQLSERVER"), F.col("policy_id").cast("string")))
