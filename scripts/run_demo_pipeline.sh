@@ -51,6 +51,8 @@ spark_job() {
   echo "$(date -Is) RUNNING $script"
   docker run --rm --network "$NETWORK" \
     --user "$(id -u):$(id -g)" -e SPARK_USER=fema -e HOME=/tmp \
+    -v /etc/passwd:/etc/passwd:ro \
+    -v /etc/group:/etc/group:ro \
     -v "$ROOT:/workspace:ro" \
     -v "$ROOT/infrastructure/volumes/lakehouse:/lakehouse" \
     -v "$HOME/.ivy2:/tmp/.ivy2" \
