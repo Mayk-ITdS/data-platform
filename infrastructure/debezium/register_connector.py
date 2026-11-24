@@ -1,5 +1,6 @@
 
 import json
+import re
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -11,6 +12,9 @@ CONFIG_FILE = Path(__file__).with_name("assureplus-oracle.json")
 def register_connector():
     data = json.loads(CONFIG_FILE.read_text())
     name = data["name"]
+    if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name):
+        raise ValueError("Invalid Kafka Connect connector name")
+
     try:
         with urllib.request.urlopen(
             f"{CONNECT_URL}/connectors/{name}",
