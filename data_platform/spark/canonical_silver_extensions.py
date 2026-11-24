@@ -12,22 +12,6 @@ import re
 from decimal import Decimal
 from pyspark.sql import SparkSession, Window, functions as F, types as T
 
-spark = (SparkSession.builder
-         .appName("FEMA-Canonical-Silver-Extensions")
-         .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
-         .config("spark.sql.catalog.lakehouse", "org.apache.iceberg.spark.SparkCatalog")
-         .config("spark.sql.catalog.lakehouse.type", "hadoop")
-         .config("spark.sql.catalog.lakehouse.warehouse", "/lakehouse/warehouse")
-         .config("spark.sql.session.timeZone", "UTC")
-         .getOrCreate())
-spark.sparkContext.setLogLevel("WARN")
-spark.sql("CREATE NAMESPACE IF NOT EXISTS lakehouse.silver")
-
-INV = spark.table("lakehouse.silver.source_schema_inventory").collect()
-META = {}
-for row in INV:
-    META.setdefault(row["topic"], []).append(row.asDict())
-
 SOURCE_FIELD_MAPPINGS = {
     "ORACLE": {
         "PRIVATE_CLIENT": {
@@ -139,7 +123,13 @@ def latest_raw(system, table, pk):
     )
 
 def typed_value(row, meta):
-    raw = jsonfield("record_json", meta["source_column"])
+    name = meta["source_column"]
+    if name.startswith(("AB_", "AP_")):
+        suffix = name[3:]
+        raw = F.coalesce(jsonfield("record_json", "AP_" + suffix),
+                         jsonfield("record_json", "AB_" + suffix))
+    else:
+        raw = jsonfield("record_json", name)
     logical = meta["logical_type"]
     connect = meta["connect_type"]
     if logical == "org.apache.kafka.connect.data.Decimal":
@@ -183,28 +173,6 @@ def extract(system, table, pk, alias_group=None):
             )
         names.add(name)
         value = typed_value(df, m)
-
-        if system == "ORACLE" and table == "PRIVATE_CLIENT":
-            field = original.lower()
-
-            if field in {
-                "ab_prenom", "ap_prenom",
-                "ab_nom", "ap_nom",
-                "ab_address", "ap_address",
-                "ab_email", "ap_email",
-            }:
-                suffix = field.split("_", 1)[1].upper()
-
-                value = F.coalesce(
-                    F.get_json_object(
-                        F.col("record_json"),
-                        f"$.AP_{suffix}"
-                    ),
-                    F.get_json_object(
-                        F.col("record_json"),
-                        f"$.AB_{suffix}"
-                    )
-                )
 
         cols.append(value.alias(name))
 
@@ -262,6 +230,22 @@ def save(df, name):
     print("Written:", full_name, flush=True)
 
 if __name__ == "__main__":
+    spark = (SparkSession.builder
+             .appName("FEMA-Canonical-Silver-Extensions")
+             .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
+             .config("spark.sql.catalog.lakehouse", "org.apache.iceberg.spark.SparkCatalog")
+             .config("spark.sql.catalog.lakehouse.type", "hadoop")
+             .config("spark.sql.catalog.lakehouse.warehouse", "/lakehouse/warehouse")
+             .config("spark.sql.session.timeZone", "UTC")
+             .getOrCreate())
+    spark.sparkContext.setLogLevel("WARN")
+    spark.sql("CREATE NAMESPACE IF NOT EXISTS lakehouse.silver")
+
+    INV = spark.table("lakehouse.silver.source_schema_inventory").collect()
+    META = {}
+    for row in INV:
+        META.setdefault(row["topic"], []).append(row.asDict())
+
     unit = extract("SQLSERVER", "PolicyUnit", "PolicyUnitId")
     unit = unit.withColumn("canonical_policy_key",
         F.concat_ws(":", F.lit("SQLSERVER"), F.col("policy_id").cast("string")))
