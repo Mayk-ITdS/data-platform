@@ -95,7 +95,7 @@ resource "google_compute_instance" "fema" {
     #!/bin/bash
     set -eux
     apt-get update
-    apt-get install -y docker.io docker-compose-v2 git lvm2 cephadm awscli chrony
+    apt-get install -y docker.io docker-compose-v2 git lvm2 cephadm awscli chrony default-jre-headless ca-certificates-java
     systemctl enable --now docker
   EOT
 }

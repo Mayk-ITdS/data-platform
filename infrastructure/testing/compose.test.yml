@@ -38,6 +38,8 @@ services:
       - spark.ui.enabled=false
       - --conf
       - spark.jars.ivy=/lakehouse/ivy-cache
+      - --repositories
+      - https://repo.maven.apache.org/maven2
       - --packages
       - org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.12.0
       - data_platform/tests/integration/spark_iceberg_smoke.py

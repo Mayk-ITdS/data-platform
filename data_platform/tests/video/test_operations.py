@@ -117,7 +117,7 @@ def test_cli_entry_points(monkeypatch, tmp_path):
     monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: response({}))
     with pytest.raises(RuntimeError, match="Expected both"):
         runpy.run_path(str(root / "scripts/check_video_sources.py"), run_name="__main__")
-    monkeypatch.setattr(sys, "argv", ["sonar", "project"])
+    monkeypatch.setattr(sys, "argv", ["sonar", "project", "--pull-request", "57"])
     def sonar_response(req, **kwargs):
         data = {"projectStatus": {"status": "OK", "conditions": []}} if "project_status" in req.full_url else {
             "issues": [], "paging": {"total": 0}}
