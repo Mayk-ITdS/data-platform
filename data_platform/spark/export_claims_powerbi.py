@@ -1,6 +1,7 @@
 from pathlib import Path
 import shutil
 
+import os
 from pyspark.sql import SparkSession
 
 spark = (
@@ -17,7 +18,7 @@ spark = (
     .config("spark.sql.catalog.lakehouse.type", "hadoop")
     .config(
         "spark.sql.catalog.lakehouse.warehouse",
-        "/lakehouse/warehouse"
+        os.getenv("FEMA_WAREHOUSE", "/lakehouse/warehouse")
     )
     .getOrCreate()
 )
@@ -35,8 +36,9 @@ try:
     if count == 0:
         raise RuntimeError("Claims Silver is empty")
 
-    output = Path("/exports/claims_bi_tmp")
-    destination = Path("/exports/claims_bi.parquet")
+    export_dir = Path(os.getenv("FEMA_EXPORT_DIR", "/exports"))
+    output = export_dir / "claims_bi_tmp"
+    destination = export_dir / "claims_bi.parquet"
 
     claims.coalesce(1).write.mode("overwrite").parquet(str(output))
 

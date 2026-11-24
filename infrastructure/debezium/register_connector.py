@@ -15,19 +15,15 @@ def register_connector():
     if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name):
         raise ValueError("Invalid Kafka Connect connector name")
 
-    try:
-        with urllib.request.urlopen(
-            f"{CONNECT_URL}/connectors/{name}",
-            timeout=10,
-        ):
-            print(f"Connector {name} already exists.")
-            return
-    except urllib.error.HTTPError as exc:
-        if exc.code != 404:
-            raise
+    endpoint = f"{CONNECT_URL}/connectors"
+    with urllib.request.urlopen(endpoint, timeout=10) as response:
+        existing_names = json.load(response)
+    if name in existing_names:
+        print(f"Connector {name} already exists.")
+        return
 
     request = urllib.request.Request(
-        f"{CONNECT_URL}/connectors",
+        endpoint,
         data=json.dumps(data).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",

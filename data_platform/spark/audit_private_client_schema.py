@@ -1,3 +1,4 @@
+import os
 from pyspark.sql import SparkSession, functions as F
 
 spark = (
@@ -10,7 +11,7 @@ spark = (
     .config("spark.sql.catalog.lakehouse.type", "hadoop")
     .config(
         "spark.sql.catalog.lakehouse.warehouse",
-        "/lakehouse/warehouse"
+        os.getenv("FEMA_WAREHOUSE", "/lakehouse/warehouse")
     )
     .getOrCreate()
 )

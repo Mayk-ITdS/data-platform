@@ -1,6 +1,7 @@
 import base64
 from decimal import Decimal
 
+import os
 from pyspark.sql import SparkSession, Window
 from pyspark.sql import functions as F
 from pyspark.sql.types import LongType, DecimalType
@@ -27,7 +28,7 @@ spark = (
     .config("spark.sql.catalog.lakehouse.type", "hadoop")
     .config(
         "spark.sql.catalog.lakehouse.warehouse",
-        "/lakehouse/warehouse"
+        os.getenv("FEMA_WAREHOUSE", "/lakehouse/warehouse")
     )
     .config("spark.sql.session.timeZone", "UTC")
     .getOrCreate()

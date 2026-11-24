@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 from pyspark.sql import SparkSession, functions as F
 from pyspark.sql.types import (
     StringType, NumericType, BooleanType,
@@ -19,7 +20,7 @@ spark = (
     .config("spark.sql.catalog.lakehouse.type", "hadoop")
     .config(
         "spark.sql.catalog.lakehouse.warehouse",
-        "/lakehouse/warehouse"
+        os.getenv("FEMA_WAREHOUSE", "/lakehouse/warehouse")
     )
     .getOrCreate()
 )
@@ -153,8 +154,8 @@ try:
     print("Final schema:")
     result.printSchema()
 
-    output_dir = Path("/exports")
-    temporary_dir = "/exports/_policy_portfolio_tmp"
+    output_dir = Path(os.getenv("FEMA_EXPORT_DIR", "/exports"))
+    temporary_dir = str(output_dir / "_policy_portfolio_tmp")
     final_file = output_dir / "policy_portfolio.parquet"
 
     result.coalesce(1).write.mode("overwrite").parquet(

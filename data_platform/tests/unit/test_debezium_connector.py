@@ -53,7 +53,7 @@ def missing_connector():
 
 def test_existing_connector_does_not_register_again(register, configuration, monkeypatch, capsys):
     monkeypatch.setattr(register, "CONFIG_FILE", configuration)
-    with patch.object(register.urllib.request, "urlopen", return_value=response({})) as call:
+    with patch.object(register.urllib.request, "urlopen", return_value=response(["assureplus-test"])) as call:
         register.register_connector()
     assert call.call_count == 1
     assert "already exists" in capsys.readouterr().out
@@ -66,7 +66,7 @@ def test_missing_connector_posts_json(register, configuration, monkeypatch, caps
     def fake_open(request, timeout):
         captured.append((request, timeout))
         if len(captured) == 1:
-            raise missing_connector()
+            return response([])
         return response({"name": "assureplus-test"})
 
     with patch.object(register.urllib.request, "urlopen", side_effect=fake_open):
@@ -112,11 +112,11 @@ def test_register_allows_safe_connector_name(register, configuration, monkeypatc
     configuration.write_text(json.dumps(payload), encoding="utf-8")
     monkeypatch.setattr(register, "CONFIG_FILE", configuration)
 
-    with patch.object(register.urllib.request, "urlopen", return_value=response({})) as urlopen:
+    with patch.object(register.urllib.request, "urlopen", return_value=response([payload["name"]])) as urlopen:
         register.register_connector()
 
     urlopen.assert_called_once_with(
-        "http://localhost:18083/connectors/assureplus.oracle_v2-1",
+        "http://localhost:18083/connectors",
         timeout=10,
     )
 
@@ -133,7 +133,7 @@ def test_existing_connector_server_error_is_not_ignored(register, configuration,
 def test_register_post_error_exits_nonzero(register, configuration, monkeypatch, capsys):
     monkeypatch.setattr(register, "CONFIG_FILE", configuration)
     post_error = urllib.error.HTTPError("http://connect", 409, "Conflict", {}, None)
-    with patch.object(register.urllib.request, "urlopen", side_effect=[missing_connector(), post_error]):
+    with patch.object(register.urllib.request, "urlopen", side_effect=[response([]), post_error]):
         with pytest.raises(SystemExit) as exc:
             register.register_connector()
     assert exc.value.code == 1
