@@ -1,12 +1,11 @@
 """FEMA canonical Silver extensions from Debezium Iceberg Bronze.
-
 Reads lakehouse.silver.source_schema_inventory and reconstructs latest CDC state
 per source primary key. Writes canonical union tables (both systems) for ten
 business entities, plus SQL Server technical policy_unit relationship table.
 Does NOT replace existing lakehouse.silver.policy and lakehouse.silver.claim.
-
 Batch reconstruction, not an incremental MERGE job. Source record JSON is kept.
 """
+
 from __future__ import annotations
 import base64
 import re
@@ -29,11 +28,24 @@ META = {}
 for row in INV:
     META.setdefault(row["topic"], []).append(row.asDict())
 
+SOURCE_FIELD_MAPPINGS = {
+    "ORACLE": {
+        "PRIVATE_CLIENT": {
+            "ab_prenom": "first_name",
+            "ap_prenom": "first_name",
+            "ab_nom": "last_name",
+            "ap_nom": "last_name",
+            "ab_address": "address",
+            "ap_address": "address",
+            "ab_email": "email",
+            "ap_email": "email",
+        }
+    }
+}
 PREFIX = {
     "SQLSERVER": "abassurance.assurances.dbo.",
     "ORACLE": "assureplus_v2.ASSUREPLUS.",
 }
-
 ALIASES = {
     "Building": {"number_of_floors_in_insured_building": "insured_building_floors"},
     "PolicyTerms": {
@@ -147,18 +159,55 @@ def typed_value(row, meta):
         return raw.cast("double")
     return raw.cast("string")
 
+def normalize_source_column(name: str, system: str) -> str:
+    if system == "ORACLE" and name.startswith("ab_"):
+        return "ap_" + name[3:]
+    return name
+
 def extract(system, table, pk, alias_group=None):
     df = latest_raw(system, table, pk)
     topic = PREFIX[system] + table
     aliases = ALIASES.get(alias_group or table, {})
     cols = []
     names = set()
+    mapping = SOURCE_FIELD_MAPPINGS.get(system, {}).get(table, {})
     for m in META[topic]:
-        name = aliases.get(m["normalized_column"], m["normalized_column"])
+        original = m["normalized_column"]
+        name = mapping.get(
+            original,
+            aliases.get(original, original)
+        )
         if name in names:
-            raise ValueError(f"Duplicate canonical column for {topic}: {name}")
+            raise ValueError(
+                f"Duplicate canonical column for {topic}: {name}"
+            )
         names.add(name)
-        cols.append(typed_value(df, m).alias(name))
+        value = typed_value(df, m)
+
+        if system == "ORACLE" and table == "PRIVATE_CLIENT":
+            field = original.lower()
+
+            if field in {
+                "ab_prenom", "ap_prenom",
+                "ab_nom", "ap_nom",
+                "ab_address", "ap_address",
+                "ab_email", "ap_email",
+            }:
+                suffix = field.split("_", 1)[1].upper()
+
+                value = F.coalesce(
+                    F.get_json_object(
+                        F.col("record_json"),
+                        f"$.AP_{suffix}"
+                    ),
+                    F.get_json_object(
+                        F.col("record_json"),
+                        f"$.AB_{suffix}"
+                    )
+                )
+
+        cols.append(value.alias(name))
+
     return df.select(
         F.lit(system).alias("source_system"),
         F.col("_pk").alias("source_primary_key"),
@@ -212,55 +261,56 @@ def save(df, name):
     (df.writeTo(full_name).using("iceberg").createOrReplace())
     print("Written:", full_name, flush=True)
 
-unit = extract("SQLSERVER", "PolicyUnit", "PolicyUnitId")
-unit = unit.withColumn("canonical_policy_key",
-    F.concat_ws(":", F.lit("SQLSERVER"), F.col("policy_id").cast("string")))
-save(unit, "policy_unit")
+if __name__ == "__main__":
+    unit = extract("SQLSERVER", "PolicyUnit", "PolicyUnitId")
+    unit = unit.withColumn("canonical_policy_key",
+        F.concat_ws(":", F.lit("SQLSERVER"), F.col("policy_id").cast("string")))
+    save(unit, "policy_unit")
 
-for canonical, sql_table, oracle_table, fk in EXTENSIONS:
-    sql_pk = {
-        "Risks": "RiskId", "Building": "BuildingId", "PolicyTerms": "PolicyTermsId",
-        "Property": "PropertyId", "PropertyUsage": "PropertyUsageId",
-        "PolicyRating": "PolicyRatingId", "PremiumFinancial": "PremiumFinancialId",
-        "HolderClassification": "HolderClassificationId",
-    }[sql_table]
-    sql = extract("SQLSERVER", sql_table, sql_pk)
-    fk_normalized = re.sub(r"(?<!^)(?=[A-Z])", "_", fk).lower()
-    links = (unit.select(
-            F.col(fk_normalized).alias("_fk"),
-            F.col("policy_id").cast("string").alias("policy_record_id"),
-            F.col("policy_unit_id"))
-        .where(F.col("_fk").isNotNull()))
-    sql = (sql.join(links, sql[sql_pk_to_snake(sql_pk)] == links["_fk"], "left")
-           .drop("_fk"))
-    ora = extract("ORACLE", oracle_table, "POLICY_RECORD_ID", sql_table)
-    ora = ora.withColumn("policy_record_id", F.col("policy_record_id").cast("string"))
-    if "policy_unit_id" not in ora.columns:
-        ora = ora.withColumn("policy_unit_id", F.lit(None).cast("long"))
-    sql, ora = harmonize(sql, ora)
-    merged = sql.unionByName(ora, allowMissingColumns=True)
-    merged = merged.withColumn("canonical_policy_key",
-        F.when(F.col("policy_record_id").isNotNull(),
-               F.concat_ws(":", F.col("source_system"), F.col("policy_record_id"))))
-    save(merged, canonical)
+    for canonical, sql_table, oracle_table, fk in EXTENSIONS:
+        sql_pk = {
+            "Risks": "RiskId", "Building": "BuildingId", "PolicyTerms": "PolicyTermsId",
+            "Property": "PropertyId", "PropertyUsage": "PropertyUsageId",
+            "PolicyRating": "PolicyRatingId", "PremiumFinancial": "PremiumFinancialId",
+            "HolderClassification": "HolderClassificationId",
+        }[sql_table]
+        sql = extract("SQLSERVER", sql_table, sql_pk)
+        fk_normalized = re.sub(r"(?<!^)(?=[A-Z])", "_", fk).lower()
+        links = (unit.select(
+                F.col(fk_normalized).alias("_fk"),
+                F.col("policy_id").cast("string").alias("policy_record_id"),
+                F.col("policy_unit_id"))
+            .where(F.col("_fk").isNotNull()))
+        sql = (sql.join(links, sql[sql_pk_to_snake(sql_pk)] == links["_fk"], "left")
+               .drop("_fk"))
+        ora = extract("ORACLE", oracle_table, "POLICY_RECORD_ID", sql_table)
+        ora = ora.withColumn("policy_record_id", F.col("policy_record_id").cast("string"))
+        if "policy_unit_id" not in ora.columns:
+            ora = ora.withColumn("policy_unit_id", F.lit(None).cast("long"))
+        sql, ora = harmonize(sql, ora)
+        merged = sql.unionByName(ora, allowMissingColumns=True)
+        merged = merged.withColumn("canonical_policy_key",
+            F.when(F.col("policy_record_id").isNotNull(),
+                   F.concat_ws(":", F.col("source_system"), F.col("policy_record_id"))))
+        save(merged, canonical)
 
-sql_holder = extract("SQLSERVER", "Holder", "HolderId")
-ora_holder = extract("ORACLE", "HOLDER", "HOLDER_CONTEXT")
-sql_holder, ora_holder = harmonize(sql_holder, ora_holder)
-holders = sql_holder.unionByName(ora_holder, allowMissingColumns=True)
-holders = holders.withColumn("canonical_holder_key",
-    F.concat_ws(":", F.col("source_system"), F.col("holder_context")))
-save(holders, "holder")
+    sql_holder = extract("SQLSERVER", "Holder", "HolderId")
+    ora_holder = extract("ORACLE", "HOLDER", "HOLDER_CONTEXT")
+    sql_holder, ora_holder = harmonize(sql_holder, ora_holder)
+    holders = sql_holder.unionByName(ora_holder, allowMissingColumns=True)
+    holders = holders.withColumn("canonical_holder_key",
+        F.concat_ws(":", F.col("source_system"), F.col("holder_context")))
+    save(holders, "holder")
 
-sql_private = extract("SQLSERVER", "PrivateClient", "HolderId")
-lookup = sql_holder.select(F.col("holder_id").alias("_holder_fk"), "holder_context")
-sql_private = (sql_private.join(lookup, sql_private["holder_id"] == lookup["_holder_fk"], "left")
-               .drop("_holder_fk"))
-ora_private = extract("ORACLE", "PRIVATE_CLIENT", "HOLDER_CONTEXT")
-sql_private, ora_private = harmonize(sql_private, ora_private)
-clients = sql_private.unionByName(ora_private, allowMissingColumns=True)
-clients = clients.withColumn("canonical_holder_key",
-    F.concat_ws(":", F.col("source_system"), F.col("holder_context")))
-save(clients, "private_client")
+    sql_private = extract("SQLSERVER", "PrivateClient", "HolderId")
+    lookup = sql_holder.select(F.col("holder_id").alias("_holder_fk"), "holder_context")
+    sql_private = (sql_private.join(lookup, sql_private["holder_id"] == lookup["_holder_fk"], "left")
+                   .drop("_holder_fk"))
+    ora_private = extract("ORACLE", "PRIVATE_CLIENT", "HOLDER_CONTEXT")
+    sql_private, ora_private = harmonize(sql_private, ora_private)
+    clients = sql_private.unionByName(ora_private, allowMissingColumns=True)
+    clients = clients.withColumn("canonical_holder_key",
+        F.concat_ws(":", F.col("source_system"), F.col("holder_context")))
+    save(clients, "private_client")
 
-spark.stop()
+    spark.stop()

@@ -1,247 +1,329 @@
-"""FEMA Silver — canonical holder identity reconciliation.
-Input:
-    lakehouse.silver.holder
-    lakehouse.silver.private_client
-Output (staging):
-    lakehouse.silver_identity_work.holder_canonical_v1
-    lakehouse.silver_identity_work.holder_source_link_v1
-Only holder identities are reconciled. Policies are not modified.
-"""
+import os
 
 from pyspark.sql import SparkSession, functions as F
 
-spark = (
-    SparkSession.builder
-    .appName("FEMA-Holder-Identity-Reconciliation")
-    .config(
-        "spark.sql.extensions",
-        "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
-    )
-    .config(
-        "spark.sql.catalog.lakehouse",
-        "org.apache.iceberg.spark.SparkCatalog",
-    )
-    .config("spark.sql.catalog.lakehouse.type", "hadoop")
-    .config(
-        "spark.sql.catalog.lakehouse.warehouse",
-        "/lakehouse/warehouse",
-    )
-    .getOrCreate()
-)
 
-spark.sparkContext.setLogLevel("WARN")
-
-def require_columns(df, columns, table):
-    missing = set(columns) - set(df.columns)
-    if missing:
-        raise ValueError(
-            f"{table}: missing columns {sorted(missing)}"
-        )
-
-
-def assert_unique(df, columns, label):
-    duplicates = (
-        df.groupBy(*columns)
-        .count()
-        .where(F.col("count") > 1)
-    )
-
-    if duplicates.limit(1).count():
-        raise ValueError(
-            f"{label}: duplicate identity keys detected"
-        )
-
-
-try:
-    holders = spark.table("lakehouse.silver.holder")
-    clients = spark.table("lakehouse.silver.private_client")
-
-    require_columns(
-        holders,
-        ["source_system", "holder_context"],
-        "silver.holder",
-    )
-
-    require_columns(
-        clients,
-        ["source_system", "holder_context", "email"],
-        "silver.private_client",
-    )
-
-    source_holders = (
-        holders.select(
-            F.col("source_system"),
-            F.col("holder_context").cast("string").alias(
-                "source_holder_context"
-            ),
-            F.col("source_primary_key").cast("string").alias(
-                "source_holder_id"
-            ),
-        )
-    )
-
-    if source_holders.where(
-        F.col("source_holder_context").isNull()
-    ).limit(1).count():
-        raise ValueError("HolderContext cannot be null")
-
-    assert_unique(
-        source_holders,
-        ["source_system", "source_holder_context"],
-        "Source holders",
-    )
-
-    email_sql = (
-        F.col("email")
-        if "email" in clients.columns
-        else F.lit(None).cast("string")
-    )
-
-    email_oracle = (
-        F.col("ap_email")
-        if "ap_email" in clients.columns
-        else F.lit(None).cast("string")
-    )
-
-    client_emails = (
-        clients.select(
-            "source_system",
-            F.col("holder_context")
-            .cast("string")
-            .alias("source_holder_context"),
-            F.lower(
-                F.trim(
-                    F.when(
-                        F.col("source_system") == "ORACLE",
-                        email_oracle
-                    ).otherwise(email_sql)
-                )
-            ).alias("email_normalized")
-        )
-        .withColumn(
-            "email_normalized",
-            F.when(
-                F.col("email_normalized") == "",
-                F.lit(None).cast("string")
-            ).otherwise(F.col("email_normalized"))
-        )
-    )
-    client_emails.groupBy("source_system").agg(
-        F.count("*").alias("clients"),
-        F.count("email_normalized").alias("emails_present")
-    ).show(truncate=False)
-    assert_unique(
-        client_emails,
-        ["source_system", "source_holder_context"],
-        "PrivateClient",
-    )
-
-    linked = source_holders.join(
-        client_emails,
-        ["source_system", "source_holder_context"],
-        "left",
-    )
-
-    orphans = client_emails.join(
-        source_holders,
-        ["source_system", "source_holder_context"],
-        "left_anti",
-    )
-
-    if orphans.limit(1).count():
-        raise ValueError(
-            "PrivateClient references an unknown source holder"
-        )
-
-    linked = linked.withColumn(
-        "canonical_holder_id",
-        F.when(
-            F.col("email_normalized").isNotNull(),
-            F.concat(
-                F.lit("EMAIL:"),
-                F.sha2(F.col("email_normalized"), 256),
-            ),
-        ).otherwise(
-            F.concat(
-                F.lit("SOURCE:"),
-                F.col("source_system"),
-                F.lit(":"),
-                F.col("source_holder_context"),
+def check_expected(name, actual, env_name):
+    raw = os.getenv(env_name)
+    if raw is not None:
+        expected = int(raw)
+        if actual != expected:
+            raise ValueError(
+                f"{name}: expected {expected}, got {actual}"
             )
-        ),
-    )
 
-    assert_unique(
-        linked,
-        ["source_system", "source_holder_context"],
-        "Holder source links",
-    )
 
-    canonical = (
-        linked.groupBy("canonical_holder_id")
-        .agg(
-            F.first(
-                "email_normalized",
-                ignorenulls=True,
-            ).alias("email_normalized"),
-            F.count("*").alias("source_identity_count"),
-            F.countDistinct("source_system").alias(
-                "source_system_count"
-            ),
+def create_spark():
+    spark = (
+        SparkSession.builder
+        .appName("FEMA-Holder-Identity-Candidate")
+        .config(
+            "spark.sql.extensions",
+            "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"
         )
+        .config(
+            "spark.sql.catalog.lakehouse",
+            "org.apache.iceberg.spark.SparkCatalog"
+        )
+        .config("spark.sql.catalog.lakehouse.type", "hadoop")
+        .config(
+            "spark.sql.catalog.lakehouse.warehouse",
+            "/lakehouse/warehouse"
+        )
+        .getOrCreate()
     )
 
-    assert_unique(
-        canonical.where(
-            F.col("email_normalized").isNotNull()
-        ),
-        ["email_normalized"],
-        "Canonical emails",
+    spark.sparkContext.setLogLevel("ERROR")
+    return spark
+
+
+def norm(column):
+    return F.regexp_replace(
+        F.lower(F.trim(column.cast("string"))),
+        r"\s+", " "
+    )
+
+
+def build_identity(holders, clients):
+
+    keys = ["source_system", "holder_context"]
+
+    # Preserve every source identity.
+    source_holders = holders.select(
+        "source_system",
+        "holder_context",
+        "source_primary_key"
     )
 
     source_count = source_holders.count()
-    link_count = linked.count()
-    canonical_count = canonical.count()
+    client_count = clients.count()
 
     if source_count == 0:
-        raise RuntimeError(
-            "No source holders found; refusing to publish empty canonical tables"
+        raise ValueError("No source holders")
+
+    if source_holders.select(*keys).distinct().count() != source_count:
+        raise ValueError("Duplicate source holder keys")
+
+    if clients.select(*keys).distinct().count() != client_count:
+        raise ValueError("Duplicate client keys")
+
+    # One row in PrivateClient must reference one existing Holder.
+    assert clients.join(
+        source_holders.select(*keys), keys, "left_anti"
+    ).count() == 0
+
+    # Canonical comparison attributes.
+    prepared = (
+        clients
+        .withColumn("email_normalized", norm(F.col("email")))
+        .withColumn(
+            "identity_name",
+            F.when(
+                F.col("source_system") == "SQLSERVER",
+                norm(F.col("full_name"))
+            ).otherwise(
+                norm(F.concat_ws(
+                    " ",
+                    F.col("first_name"),
+                    F.col("last_name")
+                ))
+            )
         )
-
-    if canonical_count == 0:
-        raise RuntimeError(
-            "Canonical holder table is empty"
+        .withColumn(
+            "identity_state",
+            norm(F.coalesce("state", "state_code"))
         )
-
-    if source_count != link_count:
-        raise AssertionError(
-            f"Holder loss: {source_count} != {link_count}"
+        .withColumn("identity_sex", norm(F.col("sex")))
+        .withColumn(
+            "identity_birth",
+            F.col("birth_year").cast("long")
         )
-
-    if canonical_count > source_count:
-        raise AssertionError(
-            "Canonical identity count exceeds source count"
-        )
-
-    print(f"Source holders: {source_count}")
-    print(f"Source links: {link_count}")
-    print(f"Canonical holders: {canonical_count}")
-    print(f"Reconciled identities: {source_count - canonical_count}")
-
-    spark.sql(
-        "CREATE NAMESPACE IF NOT EXISTS "
-        "lakehouse.silver_identity_work"
     )
 
+    sql = prepared.where(
+        F.col("source_system") == "SQLSERVER"
+    ).alias("s")
+
+    oracle = prepared.where(
+        F.col("source_system") == "ORACLE"
+    ).alias("o")
+
+    # Match only fully validated identities.
+    pairs = (
+        sql.join(
+            oracle,
+            F.col("s.email_normalized")
+            == F.col("o.email_normalized"),
+            "inner"
+        )
+        .where(F.col("s.email_normalized").isNotNull())
+        .where(F.col("s.email_normalized") != "")
+        .where(
+            F.col("s.identity_name").isNotNull()
+            & (F.col("s.identity_name") != "")
+            & F.col("s.identity_name").eqNullSafe(
+                F.col("o.identity_name")
+            )
+            & F.col("s.identity_birth").isNotNull()
+            & F.col("s.identity_birth").eqNullSafe(
+                F.col("o.identity_birth")
+            )
+            & F.col("s.identity_sex").isNotNull()
+            & F.col("s.identity_sex").eqNullSafe(
+                F.col("o.identity_sex")
+            )
+            & F.col("s.identity_state").isNotNull()
+            & F.col("s.identity_state").eqNullSafe(
+                F.col("o.identity_state")
+            )
+        )
+        .select(
+            F.col("s.email_normalized").alias("email_normalized"),
+            F.col("s.holder_context").alias("sql_context"),
+            F.col("o.holder_context").alias("oracle_context")
+        )
+    )
+
+    pair_count = pairs.count()
+
+    for column in ("sql_context", "oracle_context", "email_normalized"):
+        if pairs.select(column).distinct().count() != pair_count:
+            raise ValueError(f"Ambiguous matching: {column}")
+
+    approved_emails = pairs.select(
+        "email_normalized"
+    ).distinct()
+
+    # Attach a canonical ID to every source holder.
+    linked = (
+        source_holders.join(
+            prepared.select(
+                *keys, "email_normalized"
+            ),
+            keys,
+            "left"
+        )
+        .join(
+            approved_emails.withColumn(
+                "approved", F.lit(True)
+            ),
+            "email_normalized",
+            "left"
+        )
+        .withColumn(
+            "canonical_holder_id",
+            F.when(
+                F.col("approved") == True,
+                F.concat(
+                    F.lit("EMAIL:"),
+                    F.sha2(F.col("email_normalized"), 256)
+                )
+            ).otherwise(
+                F.concat(
+                    F.lit("SOURCE:"),
+                    F.col("source_system"),
+                    F.lit(":"),
+                    F.col("holder_context")
+                )
+            )
+        )
+        .drop("approved")
+    )
+
+    canonical = linked.groupBy(
+        "canonical_holder_id"
+    ).agg(
+        F.first(
+            "email_normalized",
+            ignorenulls=True
+        ).alias("email_normalized"),
+        F.count("*").alias("source_identity_count"),
+        F.countDistinct("source_system").alias(
+            "source_system_count"
+        )
+    )
+
+    links_count = linked.count()
+    canonical_count = canonical.count()
+
+    cross_system = canonical.where(
+        F.col("source_system_count") == 2
+    ).count()
+
+    duplicate_links = (
+        linked.groupBy(*keys)
+        .count()
+        .where(F.col("count") > 1)
+        .count()
+    )
+
+    print("\n=== IDENTITY RECONCILIATION ===")
+    print("Source links:", links_count)
+    print("Canonical identities:", canonical_count)
+    print("Cross-system identities:", cross_system)
+    print("Duplicate source links:", duplicate_links)
+    print("Reconciled pairs:", pairs.count())
+
+    if links_count != source_count:
+        raise ValueError("Source holder loss")
+
+    if duplicate_links:
+        raise ValueError("Duplicate source links")
+
+    if canonical_count != source_count - pair_count:
+        raise ValueError("Unexpected canonical identity count")
+
+    if cross_system != pair_count:
+        raise ValueError("Unexpected cross-system identity count")
+
+    check_expected("Source links", links_count, "EXPECTED_SOURCE_LINKS")
+    check_expected(
+        "Canonical identities",
+        canonical_count,
+        "EXPECTED_CANONICAL_IDENTITIES"
+    )
+    check_expected(
+        "Reconciled pairs",
+        pair_count,
+        "EXPECTED_RECONCILED_PAIRS"
+    )
+
+    return canonical, linked
+
+
+def publish_identity(spark, canonical, linked):
+    import os
+
+    if os.environ.get("PUBLISH_IDENTITY") != "YES":
+        raise RuntimeError(
+            "Publishing requires PUBLISH_IDENTITY=YES"
+        )
+
+    namespace = "lakehouse.silver_identity_work"
+
+    canonical_target = (
+        namespace + ".holder_canonical_v1"
+    )
+
+    links_target = (
+        namespace + ".holder_source_link_v1"
+    )
+
+
+    spark.sql(
+        f"CREATE NAMESPACE IF NOT EXISTS {namespace}"
+    )
+
+    # Create, never overwrite existing tables.
     canonical.writeTo(
-        "lakehouse.silver_identity_work.holder_canonical_v1"
+        canonical_target
     ).using("iceberg").createOrReplace()
+
+    print("PUBLISHED:", canonical_target)
 
     linked.writeTo(
-        "lakehouse.silver_identity_work.holder_source_link_v1"
+        links_target
     ).using("iceberg").createOrReplace()
 
-    print("PASS holder identity reconciliation")
+    print("PUBLISHED:", links_target)
 
-finally:
-    spark.stop()
+    # Verify persisted data, not only in-memory DataFrames.
+    persisted_canonical = spark.table(canonical_target)
+    persisted_links = spark.table(links_target)
+
+    if persisted_canonical.count() != canonical_count:
+        raise ValueError("Persisted canonical count mismatch")
+
+    if persisted_links.count() != links_count:
+        raise ValueError("Persisted link count mismatch")
+
+    if persisted_canonical.where(
+        F.col("source_system_count") == 2
+    ).count() != cross_system:
+        raise ValueError("Persisted cross-system mismatch")
+
+    if persisted_links.select(
+        "source_system", "holder_context"
+    ).distinct().count() != links_count:
+        raise ValueError("Persisted duplicate links")
+
+    print("PASS: PERSISTED IDENTITY TABLES VERIFIED")
+
+
+def main(spark):
+    holders = spark.table("lakehouse.silver.holder")
+    clients = spark.table(
+        "lakehouse.silver_identity_work.private_client_candidate_v1"
+    )
+
+    canonical, linked = build_identity(holders, clients)
+    publish_identity(spark, canonical, linked)
+    print("\nPASS: IDENTITY RECONCILIATION")
+
+
+if __name__ == '__main__':
+    spark = create_spark()
+    try:
+        main(spark)
+    finally:
+        spark.stop()
