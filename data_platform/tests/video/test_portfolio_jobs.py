@@ -43,8 +43,7 @@ def test_portfolio_jobs(tmp_path, monkeypatch, capsys):
     links = spark.table("lakehouse.silver_identity_work.holder_source_link_v1")
     links.withColumnRenamed("holder_context", "source_holder_context").withColumnRenamed(
         "source_primary_key", "source_holder_id").writeTo("lakehouse.silver_identity_work.link_input").using("iceberg").create()
-    spark.sql("DROP TABLE lakehouse.silver_identity_work.holder_source_link_v1")
-    spark.sql("ALTER TABLE lakehouse.silver_identity_work.link_input RENAME TO lakehouse.silver_identity_work.holder_source_link_v1")
+    table("silver_identity_work.holder_source_link_v1", "SELECT * FROM lakehouse.silver_identity_work.link_input")
     table("silver.policy", """SELECT * FROM VALUES ('SQLSERVER:1','SQLSERVER','7','s'),('ORACLE:2','ORACLE','2','o')
           AS t(canonical_policy_key,source_system,holder_id,holder_context)""")
     job("policy_holder_link")
