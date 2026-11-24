@@ -19,6 +19,7 @@ dc up -d --wait kafka
 dc run --rm producer
 
 SPARK_ARGS=(
+  --repositories https://repo.maven.apache.org/maven2
   --master 'local[2]'
   --driver-memory 1536m
   --conf spark.sql.shuffle.partitions=2
