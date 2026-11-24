@@ -49,6 +49,7 @@ spark_job() {
   shift
   echo "$(date -Is) RUNNING $script"
   docker run --rm --network "$NETWORK" \
+    --user "$(id -u):$(id -g)" -e SPARK_USER=fema -e HOME=/tmp \
     -v "$ROOT:/workspace:ro" \
     -v "$ROOT/infrastructure/volumes/lakehouse:/lakehouse" \
     -v "$HOME/.ivy2:/tmp/.ivy2" \
@@ -68,6 +69,7 @@ spark_job() {
       "${catalog_args[@]}" \
       --conf spark.sql.shuffle.partitions=8 \
       --conf spark.jars.ivy=/tmp/.ivy2 \
+      --repositories https://repo.maven.apache.org/maven2 \
       --packages "$PACKAGES" \
       "/workspace/$script" "$@"
 }

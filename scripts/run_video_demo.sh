@@ -15,7 +15,7 @@ for container in kafka-fema connect-fema sqlserver-fema oracle-fema-v2; do
   fi
 done
 
-echo "Service containers present (not a CDC end-to-end health guarantee)."
+python3 scripts/check_video_sources.py
 echo "=== Step 1: Kafka -> Bronze -> Silver -> Gold (ephemeral Spark containers) ==="
 bash scripts/run_demo_pipeline.sh --once
 
