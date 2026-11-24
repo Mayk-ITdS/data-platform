@@ -31,3 +31,11 @@ jobs:
       - run: terraform fmt -check
       - run: terraform init -backend=false -input=false
       - run: terraform validate
+  sonar-recording:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show master Quality Gate and open security findings
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: python scripts/sonar_video.py Mayk-ITdS_data-platform --branch master
