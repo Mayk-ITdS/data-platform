@@ -79,6 +79,48 @@ def test_missing_connector_posts_json(register, configuration, monkeypatch, caps
     assert "Connector registered: assureplus-test" in capsys.readouterr().out
 
 
+
+@pytest.mark.parametrize("invalid_name", [
+    "../admin",
+    "..",
+    "/connectors",
+    "test/other",
+    "test?query=1",
+    "test#fragment",
+    "",
+    42,
+    None,
+])
+def test_register_rejects_unsafe_connector_names_before_http(
+    register, configuration, monkeypatch, invalid_name
+):
+    payload = json.loads(configuration.read_text())
+    payload["name"] = invalid_name
+    configuration.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(register, "CONFIG_FILE", configuration)
+
+    with patch.object(register.urllib.request, "urlopen") as urlopen:
+        with pytest.raises(ValueError, match="Invalid Kafka Connect connector name"):
+            register.register_connector()
+
+    urlopen.assert_not_called()
+
+
+def test_register_allows_safe_connector_name(register, configuration, monkeypatch):
+    payload = json.loads(configuration.read_text())
+    payload["name"] = "assureplus.oracle_v2-1"
+    configuration.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(register, "CONFIG_FILE", configuration)
+
+    with patch.object(register.urllib.request, "urlopen", return_value=response({})) as urlopen:
+        register.register_connector()
+
+    urlopen.assert_called_once_with(
+        "http://localhost:18083/connectors/assureplus.oracle_v2-1",
+        timeout=10,
+    )
+
+
 def test_existing_connector_server_error_is_not_ignored(register, configuration, monkeypatch):
     monkeypatch.setattr(register, "CONFIG_FILE", configuration)
     error = urllib.error.HTTPError("http://connect", 500, "Server Error", {}, None)
