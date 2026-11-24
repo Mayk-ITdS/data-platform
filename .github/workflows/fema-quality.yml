@@ -4,9 +4,18 @@ name: FEMA quality
 on:
   pull_request:
     branches: [master, develop]
+
   push:
-    branches: [master, develop]
+    branches:
+    - master
+    - develop
+    - 'feature/**'
+
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
