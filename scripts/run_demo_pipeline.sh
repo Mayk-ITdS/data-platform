@@ -29,6 +29,21 @@ NETWORK="${FEMA_DOCKER_NETWORK:-$(docker inspect kafka-fema --format '{{range $n
 if [[ -z "$NETWORK" ]]; then echo "Cannot discover Kafka docker network" >&2; exit 1; fi
 
 PACKAGES="org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.12.0,org.apache.spark:spark-sql-kafka-0-10_2.13:4.1.0"
+catalog_type=hadoop
+warehouse=/lakehouse/warehouse
+catalog_args=()
+container_env=()
+if [[ -n "${FEMA_REST_URI:-}" ]]; then
+  catalog_type=rest
+  warehouse=s3://fema-lakehouse/warehouse
+  PACKAGES+=,org.apache.iceberg:iceberg-aws-bundle:1.12.0
+  catalog_args=(--conf "spark.sql.catalog.lakehouse.uri=$FEMA_REST_URI"
+    --conf spark.sql.catalog.lakehouse.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+    --conf "spark.sql.catalog.lakehouse.s3.endpoint=${FEMA_S3_ENDPOINT:?}"
+    --conf spark.sql.catalog.lakehouse.s3.path-style-access=true)
+  : "${AWS_ACCESS_KEY_ID:?}" "${AWS_SECRET_ACCESS_KEY:?}"
+  container_env=(--add-host ceph-rgw:host-gateway -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_REGION=us-east-1)
+fi
 spark_job() {
   local script="$1"
   shift
@@ -37,13 +52,20 @@ spark_job() {
     -v "$ROOT:/workspace:ro" \
     -v "$ROOT/infrastructure/volumes/lakehouse:/lakehouse" \
     -v "$HOME/.ivy2:/tmp/.ivy2" \
+    -e FEMA_CATALOG_TYPE="$catalog_type" -e FEMA_WAREHOUSE="$warehouse" \
+    "${container_env[@]}" \
     -e KAFKA_BOOTSTRAP_SERVERS=kafka-fema:9092 \
+    -e BRONZE_CHECKPOINT="/lakehouse/checkpoints/${FEMA_CHECKPOINT_NAME:-bronze_unified_v1}" \
     -e BRONZE_TRIGGER=availableNow \
-    -e KAFKA_STARTING_OFFSETS=latest \
+    -e KAFKA_STARTING_OFFSETS="${KAFKA_STARTING_OFFSETS:-latest}" \
     "$IMAGE" \
     /opt/spark/bin/spark-submit \
       --master 'local[2]' \
       --driver-memory 3g \
+      --conf spark.sql.catalog.lakehouse=org.apache.iceberg.spark.SparkCatalog \
+      --conf "spark.sql.catalog.lakehouse.type=$catalog_type" \
+      --conf "spark.sql.catalog.lakehouse.warehouse=$warehouse" \
+      "${catalog_args[@]}" \
       --conf spark.sql.shuffle.partitions=8 \
       --conf spark.jars.ivy=/tmp/.ivy2 \
       --packages "$PACKAGES" \
@@ -51,10 +73,13 @@ spark_job() {
 }
 
 cycle() {
+  spark_job data_platform/tests/integration/bootstrap_bronze_e2e.py
   spark_job data_platform/spark/bronze_ingestion.py
+  spark_job data_platform/spark/schema_inventory.py
   spark_job data_platform/spark/canonical_policy_claim.py
   spark_job data_platform/spark/canonical_silver_extensions.py
   spark_job data_platform/spark/build_gold_marts.py
+  spark_job scripts/build_video_report.py
   echo "$(date -Is) PASS: Kafka -> Iceberg Bronze -> Silver -> Gold batch cycle"
 }
 

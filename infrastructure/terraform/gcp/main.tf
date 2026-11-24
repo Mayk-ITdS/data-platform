@@ -16,6 +16,14 @@ variable "zone" {
   type = string
   default = "europe-west1-b"
 }
+variable "boot_disk_gb" {
+  type = number
+  default = 100
+}
+variable "ceph_disk_gb" {
+  type = number
+  default = 200
+}
 provider "google" {
   project = var.project_id
   region = var.region
@@ -55,7 +63,7 @@ resource "google_compute_router_nat" "fema" {
 resource "google_compute_disk" "ceph" {
   name = "fema-ceph-osd"
   type = "pd-balanced"
-  size = 200
+  size = var.ceph_disk_gb
   zone = var.zone
   lifecycle { prevent_destroy = true }
 }
@@ -66,7 +74,7 @@ resource "google_compute_instance" "fema" {
   boot_disk {
     initialize_params {
       image = "ubuntu-os-cloud/ubuntu-2404-lts-amd64"
-      size = 100
+      size = var.boot_disk_gb
     }
   }
   attached_disk {
@@ -76,11 +84,12 @@ resource "google_compute_instance" "fema" {
   network_interface {
     subnetwork = google_compute_subnetwork.fema.id
   }
+  depends_on = [google_compute_router_nat.fema]
   metadata_startup_script = <<-EOT
     #!/bin/bash
     set -eux
     apt-get update
-    apt-get install -y docker.io git lvm2
+    apt-get install -y docker.io docker-compose-v2 git lvm2 cephadm awscli chrony
     systemctl enable --now docker
   EOT
 }

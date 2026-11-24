@@ -4,6 +4,7 @@ Runs as a finite Spark batch after Silver reconstruction. It does not implement
 incremental Silver MERGE or automatically refresh Power BI by itself.
 """
 from datetime import datetime, timezone
+import os
 from pyspark.sql import SparkSession, functions as F, types as T
 
 SILVER_ENTITIES = (
@@ -17,8 +18,8 @@ spark = (
     SparkSession.builder.appName("FEMA-Gold-Demo-Marts")
     .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
     .config("spark.sql.catalog.lakehouse", "org.apache.iceberg.spark.SparkCatalog")
-    .config("spark.sql.catalog.lakehouse.type", "hadoop")
-    .config("spark.sql.catalog.lakehouse.warehouse", "/lakehouse/warehouse")
+    .config("spark.sql.catalog.lakehouse.type", os.getenv("FEMA_CATALOG_TYPE", "hadoop"))
+    .config("spark.sql.catalog.lakehouse.warehouse", os.getenv("FEMA_WAREHOUSE", "/lakehouse/warehouse"))
     .config("spark.sql.session.timeZone", "UTC")
     .getOrCreate()
 )
