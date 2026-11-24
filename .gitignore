@@ -47,3 +47,9 @@ __pycache__/
 
 # Local Debezium credentials
 /infrastructure/debezium/assureplus-oracle.json
+
+# Local Terraform state and provider cache
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
