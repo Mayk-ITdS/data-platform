@@ -15,5 +15,5 @@ done
 docker exec fema-sonar-oracle healthcheck.sh
 docker exec -i fema-sonar-oracle bash -c 'exec sqlplus -L -s "ASSUREPLUS/$APP_USER_PASSWORD@//localhost:1521/FREEPDB1"' \
   < data/source_system/dbs/oracle/migrations/oracle_init.sql
-curl -fsSL --retry 3 -o "$RUNNER_TEMP/fema-ojdbc.jar" \
+curl --proto '=https' --proto-redir '=https' -fsSL --retry 3 -o "$RUNNER_TEMP/fema-ojdbc.jar" \
   https://repo.maven.apache.org/maven2/com/oracle/database/jdbc/ojdbc11/23.6.0.24.10/ojdbc11-23.6.0.24.10.jar
