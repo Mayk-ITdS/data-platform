@@ -148,6 +148,46 @@ stage() {
     sleep "${FEMA_DEMO_PAUSE_OVERRIDE:-$pause}"
 }
 
+
+publish_gold() {
+    local branch="feature/gold-business-analytics"
+    local repo="Mayk-ITdS/data-platform"
+    local pr
+
+    [[ "$(git branch --show-current)" == "$branch" ]] || return 1
+
+    gh auth status --hostname github.com || return 1
+
+    center "Branche source : $branch" "$CYAN"
+    center "Branche cible : develop" "$CYAN"
+
+    git push origin "HEAD:refs/heads/$branch" || return 1
+
+    center "PASS - Code source publie sur GitHub" "$GREEN"
+
+    pr="$(gh pr list \
+        --repo "$repo" \
+        --head "$branch" \
+        --base develop \
+        --state open \
+        --json url \
+        --jq '.[0].url // empty')" || return 1
+
+    if [[ -z "$pr" ]]; then
+        pr="$(gh pr create \
+            --repo "$repo" \
+            --head "$branch" \
+            --base develop \
+            --title "Gold business analytics and Power BI reporting" \
+            --body "Construction des Gold Marts et demonstration end-to-end du pipeline FEMA." \
+        )" || return 1
+    fi
+
+    center "PASS - Pull Request vers develop" "$GREEN"
+    center "$pr" "$GREEN"
+    center "Fusion en attente de validation CI/CD" "$CYAN"
+}
+
 cycle() {
     stage "02 | INITIALISATION BRONZE" 5 \
         spark_job data_platform/tests/integration/bootstrap_bronze_e2e.py
@@ -167,7 +207,10 @@ cycle() {
     stage "07 | CONSTRUCTION DES GOLD MARTS" 15 \
         spark_job data_platform/spark/build_gold_marts.py
 
-    stage "08 | GENERATION DU RAPPORT POWER BI" 5 \
+    if [[ "${FEMA_DEMO_PUBLISH:-0}" == "1" ]]; then
+        stage "08 | PUBLICATION GITHUB" 8 publish_gold
+    fi
+    stage "09 | GENERATION DU RAPPORT POWER BI" 5 \
         spark_job scripts/build_video_report.py
 
     center "PIPELINE TERMINE AVEC SUCCES" "$GREEN"
