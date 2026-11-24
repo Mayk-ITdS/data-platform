@@ -15,14 +15,44 @@ for container in kafka-fema connect-fema sqlserver-fema oracle-fema-v2; do
   fi
 done
 
+export DEMO_WIDTH="$(tput cols 2>/dev/null || echo 120)"
+
+banner() {
+    local message="$1"
+    local padding=$(( (DEMO_WIDTH - ${#message}) / 2 ))
+    (( padding < 0 )) && padding=0
+
+    printf '\n%*s\033[1;36m%s\033[0m\n\n' \
+        "$padding" "" "$message"
+}
+
+success() {
+    local message="$1"
+    local padding=$(( (DEMO_WIDTH - ${#message}) / 2 ))
+    (( padding < 0 )) && padding=0
+
+    printf '\n%*s\033[1;32m%s\033[0m\n\n' \
+        "$padding" "" "$message"
+}
+
+banner "FEMA DATA PLATFORM — DEMONSTRATION END-TO-END"
+
+banner "01 | VALIDATION DES SYSTEMES SOURCES"
+
 python3 scripts/check_video_sources.py
-echo "=== Step 1: Kafka -> Bronze -> Silver -> Gold (ephemeral Spark containers) ==="
+
+success "PASS — VALIDATION DES SYSTEMES SOURCES"
+
+sleep 5
+banner "KAFKA → BRONZE → SILVER → GOLD → POWER BI"
 bash scripts/run_demo_pipeline.sh --once
 
 report="$ROOT/infrastructure/volumes/lakehouse/video/FEMA/FEMA.pbip"
 [[ -s "$report" ]]
 if command -v wslpath >/dev/null && command -v explorer.exe >/dev/null; then
-  echo "Ouverture du rapport Power BI Desktop"
+  success "PASS — RAPPORT POWER BI GENERE"
+  banner "OUVERTURE AUTOMATIQUE DE POWER BI DESKTOP"
+  sleep 5
   explorer.exe "$(wslpath -w "$report")" || [[ "$?" -eq 1 ]]
 else
   echo "Ouvrir dans Power BI Desktop : $report"
