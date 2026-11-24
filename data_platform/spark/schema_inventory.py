@@ -3,6 +3,8 @@ import re
 import os
 from pyspark.sql import SparkSession
 from pyspark.sql import types as T
+from pyspark.sql import functions as F
+import time
 
 spark = (
     SparkSession.builder
@@ -35,10 +37,9 @@ schemas = (
     bronze
     .where("value_raw IS NOT NULL")
     .select("source_system", "topic", "offset", "value_raw")
-    .orderBy("topic", "offset")
     .groupBy("source_system", "topic")
     .agg(
-        __import__("pyspark").sql.functions.min_by(
+        F.max_by(
             "value_raw", "offset"
         ).alias("value_raw")
     )
@@ -98,10 +99,18 @@ spark.sql("CREATE NAMESPACE IF NOT EXISTS lakehouse.silver")
     .createOrReplace()
 )
 
-inventory.groupBy("source_system", "topic").count().show(
-    50, truncate=False
+(
+    inventory
+    .groupBy("source_system","topic")
+    .agg(F.count('*').alias('columns_count'))
+    .orderBy('source_system','topic')
+    .show(50, truncate=False)
 )
 
-print(f"Total columns inventoried: {len(rows)}")
+print(f"\nTotal source tables inventoried: {len(schemas)}\n")
+print(f"\nTotal source columns inventoried: {len(rows)}\n")
+print("\nPASS: source schema inventory\n",flush=True) # flush buffer before print ( for reading )
+
+time.sleep(5) # to be able to read a little
 
 spark.stop()
