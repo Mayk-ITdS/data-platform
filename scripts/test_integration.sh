@@ -162,7 +162,7 @@ with tempfile.TemporaryDirectory(prefix="fema-red-") as tmp:
 
 PYTEST
 
-    sleep 5
+    sleep 10
 
     printf "\n${GREEN}02 | GREEN - APRES CORRECTION${RESET}\n\n"
 

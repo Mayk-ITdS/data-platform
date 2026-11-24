@@ -77,15 +77,100 @@ spark_job() {
       "/workspace/$script" "$@"
 }
 
+GREEN=$'\033[1;32m'
+CYAN=$'\033[1;36m'
+RED=$'\033[1;31m'
+RESET=$'\033[0m'
+
+DEMO_PAUSE="${FEMA_DEMO_PAUSE:-5}"
+
+export DEMO_WIDTH="$(tput cols 2>/dev/null || echo 120)"
+export PYTHONUNBUFFERED=1
+
+center_output() {
+    python3 -u -c '
+import os
+import sys
+
+width = int(os.environ.get("DEMO_WIDTH", "120"))
+padding = " " * max(0, (width - 100) // 2)
+
+for line in sys.stdin:
+    sys.stdout.write(padding + line)
+    sys.stdout.flush()
+'
+}
+
+exec > >(center_output) 2>&1
+
+export COLUMNS=100
+
+center() {
+    local message="$1"
+    local color="${2:-$RESET}"
+    local width
+    width=100
+    local padding=$(( (width - ${#message}) / 2 ))
+
+    if (( padding < 0 )); then
+        padding=0
+    fi
+
+    printf '%*s%s%s%s\n' "$padding" "" "$color" "$message" "$RESET"
+}
+
+stage() {
+    local title="$1"
+    local pause="$2"
+    shift 2
+
+    local started=$SECONDS
+    local status=0
+
+    printf '\n'
+    center "====================================================================" "$CYAN"
+    center "$title" "$CYAN"
+    center "====================================================================" "$CYAN"
+    printf '\n'
+
+    "$@" || status=$?
+
+    printf '\n'
+
+    if (( status != 0 )); then
+        center "FAIL — $title (code $status)" "$RED"
+        return "$status"
+    fi
+
+    center "PASS — $title — $((SECONDS - started)) s" "$GREEN"
+
+    printf '\n'
+    sleep "${FEMA_DEMO_PAUSE_OVERRIDE:-$pause}"
+}
+
 cycle() {
-  spark_job data_platform/tests/integration/bootstrap_bronze_e2e.py
-  spark_job data_platform/spark/bronze_ingestion.py
-  spark_job data_platform/spark/schema_inventory.py
-  spark_job data_platform/spark/canonical_policy_claim.py
-  spark_job data_platform/spark/canonical_silver_extensions.py
-  spark_job data_platform/spark/build_gold_marts.py
-  spark_job scripts/build_video_report.py
-  echo "$(date -Is) PASS: Kafka -> Iceberg Bronze -> Silver -> Gold batch cycle"
+    stage "02 | INITIALISATION BRONZE" 5 \
+        spark_job data_platform/tests/integration/bootstrap_bronze_e2e.py
+
+    stage "03 | INGESTION DES EVENEMENTS CDC" 5 \
+        spark_job data_platform/spark/bronze_ingestion.py
+
+    stage "04 | INVENTAIRE DES SCHEMAS" 8 \
+        spark_job data_platform/spark/schema_inventory.py
+
+    stage "05 | INTEGRATION DES CONTRATS ET SINISTRES" 8 \
+        spark_job data_platform/spark/canonical_policy_claim.py
+
+    stage "06 | HARMONISATION DES ENTITES SILVER" 8 \
+        spark_job data_platform/spark/canonical_silver_extensions.py
+
+    stage "07 | CONSTRUCTION DES GOLD MARTS" 15 \
+        spark_job data_platform/spark/build_gold_marts.py
+
+    stage "08 | GENERATION DU RAPPORT POWER BI" 5 \
+        spark_job scripts/build_video_report.py
+
+    center "PIPELINE TERMINE AVEC SUCCES" "$GREEN"
 }
 
 if [[ "$MODE" == "--once" ]]; then
