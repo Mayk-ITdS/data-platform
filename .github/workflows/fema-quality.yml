@@ -196,3 +196,27 @@ jobs:
           SONAR_ORG: ${{ vars.SONAR_ORGANIZATION }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: python scripts/sonar_video.py "$PROJECT_KEY" --organization "$SONAR_ORG" --pull-request "$PR_NUMBER"
+
+      - name: Verify the master's coverage and security targets
+        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+        run: |
+          python - <<'PY'
+          import os
+          from scripts.sonar_video import query
+          project = os.environ["PROJECT_KEY"]
+          gate = query("qualitygates/project_status", projectKey=project, branch="master")["projectStatus"]
+          values = {item["metricKey"]: item.get("actualValue") for item in gate["conditions"]}
+          metrics = query("measures/component", component=project, branch="master",
+                          metricKeys="security_rating,coverage")["component"]["measures"]
+          overall = {m["metric"]: m["value"] for m in metrics}
+          print("Master Quality Gate:", gate["status"])
+          print("Master new-code coverage:", values["new_coverage"])
+          print("Master overall coverage:", overall["coverage"])
+          print("Master security ratings (1=A), new and overall:", values["new_security_rating"], overall["security_rating"])
+          if (gate["status"] != "OK" or float(values["new_coverage"]) < 90
+                  or float(values["new_security_rating"]) != 1 or float(overall["security_rating"]) != 1):
+              raise SystemExit("Master coverage or security target not reached")
+          PY

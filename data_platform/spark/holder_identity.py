@@ -28,7 +28,7 @@ def create_spark():
         .config("spark.sql.catalog.lakehouse.type", "hadoop")
         .config(
             "spark.sql.catalog.lakehouse.warehouse",
-            "/lakehouse/warehouse"
+            os.getenv("FEMA_WAREHOUSE", "/lakehouse/warehouse")
         )
         .getOrCreate()
     )
@@ -274,7 +274,9 @@ def publish_identity(spark, canonical, linked):
         f"CREATE NAMESPACE IF NOT EXISTS {namespace}"
     )
 
-    # Create, never overwrite existing tables.
+    canonical_count = canonical.count()
+    links_count = linked.count()
+    cross_system = canonical.where(F.col("source_system_count") == 2).count()
     canonical.writeTo(
         canonical_target
     ).using("iceberg").createOrReplace()

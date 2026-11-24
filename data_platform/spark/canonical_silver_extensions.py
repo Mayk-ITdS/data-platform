@@ -245,7 +245,8 @@ if __name__ == "__main__":
     INV = spark.table("lakehouse.silver.source_schema_inventory").collect()
     META = {}
     for row in INV:
-        META.setdefault(row["topic"], []).append(row.asDict())
+        fields = row.asDict()
+        META.setdefault(fields["topic"], []).append(fields)
 
     unit = extract("SQLSERVER", "PolicyUnit", "PolicyUnitId")
     unit = unit.withColumn("canonical_policy_key",

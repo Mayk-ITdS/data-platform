@@ -1,7 +1,7 @@
 name: FEMA video checks
 on:
   pull_request:
-    branches: [develop]
+    branches: [develop, master]
 permissions:
   contents: read
 jobs:
@@ -27,3 +27,25 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: python scripts/sonar_video.py Mayk-ITdS_data-platform --branch master --organization "${{ vars.SONAR_ORGANIZATION }}"
+
+      - name: Identify uncovered files on master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          python - <<'PYTHON'
+          from scripts.sonar_video import query
+          keys = "coverage,new_coverage,new_lines_to_cover,new_uncovered_lines"
+          project = "Mayk-ITdS_data-platform"
+          page = 1
+          while True:
+              data = query("measures/component_tree", component=project, branch="master",
+                           metricKeys=keys, qualifiers="FIL", strategy="leaves", p=page, ps=100)
+              for item in data["components"]:
+                  metrics = {m["metric"]: m.get("value", (m.get("period") or (m.get("periods") or [{}])[0]).get("value"))
+                             for m in item["measures"]}
+                  if int(metrics.get("new_uncovered_lines") or 0):
+                      print(item["path"], metrics)
+              if page * 100 >= data["paging"]["total"]:
+                  break
+              page += 1
+          PYTHON
