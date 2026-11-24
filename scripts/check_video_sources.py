@@ -10,7 +10,19 @@ def check():
     with urlopen(url + "/connectors?expand=status&expand=info", timeout=15) as response:
         connectors = json.load(response)
     engines = set()
-    for name, detail in connectors.items():
+    expected = {
+        "abassurance-sqlserver": ("SqlServerConnector", "abassurance"),
+        "assureplus-oracle-v2": ("OracleConnector", "assureplus_v2"),
+    }
+    for name, (expected_kind, expected_prefix) in expected.items():
+        if name not in connectors:
+            raise RuntimeError("Missing connector: " + name)
+        detail = connectors[name]
+        config = detail["info"]["config"]
+        if config.get("topic.prefix") != expected_prefix:
+            raise RuntimeError("Unexpected topic prefix: " + name)
+        if config["connector.class"].split(".")[-1] != expected_kind:
+            raise RuntimeError("Unexpected connector class: " + name)
         kind = detail["info"]["config"]["connector.class"].split(".")[-1]
         if kind not in {"OracleConnector", "SqlServerConnector"}:
             continue
